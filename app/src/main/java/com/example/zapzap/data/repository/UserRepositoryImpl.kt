@@ -1,5 +1,6 @@
 package com.example.zapzap.data.repository
 
+import android.content.Context
 import android.net.Uri
 import com.example.zapzap.data.local.dao.UserDao
 import com.example.zapzap.data.mapper.UserMapper
@@ -7,22 +8,27 @@ import com.example.zapzap.domain.model.User
 import com.example.zapzap.domain.model.UserStatus
 import com.example.zapzap.domain.repository.UserRepository
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.storage.FirebaseStorage
+import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.jan.supabase.storage.Storage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
  * Implementação do repositório de usuários.
+ * Usa Firestore para perfil e Supabase para fotos (Storage gratuito).
  */
 @Singleton
 class UserRepositoryImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val firestore: FirebaseFirestore,
-    private val storage: FirebaseStorage,
+    private val supabaseStorage: Storage,
     private val userDao: UserDao
 ) : UserRepository {
 
@@ -55,12 +61,21 @@ class UserRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun updateProfilePhoto(userId: String, photoUri: Uri): Result<String> {
-        return try {
+    override suspend fun updateProfilePhoto(userId: String, photoUri: Uri): Result<String> = withContext(Dispatchers.IO) {
+        return@withContext try {
             val fileName = "profile_${userId}_${UUID.randomUUID()}.jpg"
-            val ref = storage.reference.child("profile_photos/$fileName")
-            ref.putFile(photoUri).await()
-            val downloadUrl = ref.downloadUrl.await().toString()
+            
+            // Ler bytes
+            val inputStream = context.contentResolver.openInputStream(photoUri)
+            val bytes = inputStream?.use { it.readBytes() } ?: throw Exception("Falha ao ler foto")
+
+            // Upload para o bucket 'profile_photos' do Supabase
+            val bucket = supabaseStorage.from("profile_photos")
+            bucket.upload(fileName, bytes) {
+                upsert = true
+            }
+
+            val downloadUrl = bucket.publicUrl(fileName)
 
             firestore.collection("users").document(userId)
                 .update("photoUrl", downloadUrl)

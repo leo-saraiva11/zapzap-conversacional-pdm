@@ -8,6 +8,6 @@
 .externalNativeBuild
 .cxx
 local.properties
-google-services.json
+# google-services.json (Removido para permitir commit conforme solicitado para trabalho acadêmico)
 *.apk
 *.aab

@@ -4,6 +4,10 @@ package com.example.zapzap.util
  * Constantes globais do aplicativo.
  */
 object Constants {
+    // Supabase (Adicionado para Storage gratuito)
+    const val SUPABASE_URL = "SUA_URL_DO_SUPABASE"
+    const val SUPABASE_ANON_KEY = "SUA_ANON_KEY_DO_SUPABASE"
+
     // Firebase Collections
     const val USERS_COLLECTION = "users"
     const val CONVERSATIONS_COLLECTION = "conversations"

@@ -434,13 +434,25 @@ fun MessageBubble(
                         // TODO: AudioPlayer composable
                     }
                     MessageType.LOCATION -> {
-                        Text("📍 Localização", style = MaterialTheme.typography.bodyMedium)
-                        // TODO: Mini-mapa com Google Maps Compose
-                        Text(
-                            "Lat: ${"%.4f".format(message.latitude)}, Lng: ${"%.4f".format(message.longitude)}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        val uri = "https://www.google.com/maps/search/?api=1&query=${message.latitude},${message.longitude}"
+                        val context = LocalContext.current
+                        
+                        Column(modifier = Modifier.clickable {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(uri))
+                            context.startActivity(intent)
+                        }) {
+                            Text("📍 Localização Atual", 
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                "Ver no Google Maps",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.secondary,
+                                textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline
+                            )
+                        }
                     }
                     MessageType.FILE -> {
                         Text("📎 Arquivo", style = MaterialTheme.typography.bodyMedium)
