@@ -5,8 +5,8 @@ package com.example.zapzap.util
  */
 object Constants {
     // Supabase (Adicionado para Storage gratuito)
-    const val SUPABASE_URL = "SUA_URL_DO_SUPABASE"
-    const val SUPABASE_ANON_KEY = "SUA_ANON_KEY_DO_SUPABASE"
+    const val SUPABASE_URL = "https://qfpzmfolingyuqcbpism.supabase.co"
+    const val SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFmcHptZm9saW5neXVxY2JwaXNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2MjgwMzQsImV4cCI6MjA4OTIwNDAzNH0.6RwIONT4UPDt15cPGVLZEa3RBSVSt_YQHbuNyFLWDn8"
 
     // Firebase Collections
     const val USERS_COLLECTION = "users"
