@@ -21,17 +21,22 @@ class AuthViewModel @Inject constructor(
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
-    val isLoggedIn: StateFlow<Boolean> = MutableStateFlow(authRepository.isLoggedIn)
-
+    // Tornar isLoggedIn reativo ao currentUser
     val currentUser: StateFlow<User?> = authRepository.currentUser
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    val isLoggedIn: StateFlow<Boolean> = currentUser
+        .map { it != null }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), authRepository.isLoggedIn)
 
     fun loginWithEmail(email: String, password: String) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             val result = authRepository.loginWithEmail(email, password)
             _authState.value = result.fold(
-                onSuccess = { AuthState.Success(it) },
+                onSuccess = { 
+                    AuthState.Success(it) 
+                },
                 onFailure = { AuthState.Error(it.message ?: "Erro ao fazer login") }
             )
         }
@@ -53,8 +58,14 @@ class AuthViewModel @Inject constructor(
             _authState.value = AuthState.Loading
             val result = authRepository.register(name, email, password)
             _authState.value = result.fold(
-                onSuccess = { AuthState.Success(it) },
-                onFailure = { AuthState.Error(it.message ?: "Erro ao criar conta") }
+                onSuccess = { 
+                    _authState.value = AuthState.Success(it)
+                    AuthState.Success(it) 
+                },
+                onFailure = { 
+                    _authState.value = AuthState.Error(it.message ?: "Erro ao criar conta")
+                    AuthState.Error(it.message ?: "Erro ao criar conta")
+                }
             )
         }
     }

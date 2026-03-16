@@ -7,7 +7,6 @@ import com.example.zapzap.domain.model.MessageType
 import com.example.zapzap.domain.repository.MediaRepository
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.jan.supabase.storage.Storage
-import io.github.jan.supabase.storage.resumable.createResumableUpload
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
