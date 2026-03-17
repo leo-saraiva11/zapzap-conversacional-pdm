@@ -115,7 +115,7 @@ fun CreateGroupScreen(
             // Lista de contatos
             LazyColumn {
                 items(contacts, key = { it.id }) { contact ->
-                    val isSelected = selectedContacts.contains(contact.userId)
+                    val isSelected = selectedContacts.contains(contact.id)
                     ListItem(
                         headlineContent = { Text(contact.displayName) },
                         supportingContent = { Text(contact.phone.ifBlank { contact.email }) },
@@ -137,7 +137,7 @@ fun CreateGroupScreen(
                         trailingContent = {
                             Checkbox(
                                 checked = isSelected,
-                                onCheckedChange = { viewModel.toggleContactSelection(contact.userId) }
+                                onCheckedChange = { viewModel.toggleContactSelection(contact.id) }
                             )
                         },
                         modifier = Modifier.fillMaxWidth()

@@ -1,6 +1,5 @@
 package com.example.zapzap.data.repository
 
-import android.util.Log
 import com.example.zapzap.data.local.dao.ConversationDao
 import com.example.zapzap.data.local.dao.MessageDao
 import com.example.zapzap.data.mapper.ConversationMapper
@@ -12,8 +11,8 @@ import com.example.zapzap.domain.model.MessageStatus
 import com.example.zapzap.domain.repository.ChatRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -31,34 +30,39 @@ class ChatRepositoryImpl @Inject constructor(
     private val conversationDao: ConversationDao
 ) : ChatRepository {
 
-    private val TAG = "ChatRepository"
-    private val repositoryScope = CoroutineScope(Dispatchers.IO)
-
     override fun getConversations(userId: String): Flow<List<Conversation>> = callbackFlow {
         val listener = firestore.collection("conversations")
             .whereArrayContains("participantIds", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener
 
-                repositoryScope.launch {
-                    val conversations = snapshot?.documents?.mapNotNull { doc ->
+                launch {
+                    val deferredConversations = snapshot?.documents?.mapNotNull { doc ->
                         val base = ConversationMapper.fromFirestore(doc.data ?: emptyMap(), doc.id)
                         
-                        // Melhoria na Identificação: Quem é o outro?
+                        // Identificação: Quem é o outro participante?
                         val otherId = base.participantIds.find { it != userId } ?: userId
                         
-                        try {
-                            val uDoc = firestore.collection("users").document(otherId).get().await()
-                            val name = uDoc.getString("displayName") ?: uDoc.getString("email") ?: "Usuário"
-                            base.copy(
-                                name = if (otherId == userId) "$name (Você)" else name,
-                                photoUrl = uDoc.getString("photoUrl") ?: ""
-                            )
-                        } catch (e: Exception) {
-                            base.copy(name = "Usuário")
+                        // FIX: Ocultar conversas individuais corrompidas do banco (erro anterior de participantIds)
+                        if (base.type == ConversationType.INDIVIDUAL && otherId == userId) {
+                            return@mapNotNull null
+                        }
+                        
+                        async {
+                            try {
+                                val uDoc = firestore.collection("users").document(otherId).get().await()
+                                val name = uDoc.getString("displayName") ?: uDoc.getString("email") ?: "Usuário"
+                                base.copy(
+                                    name = name,
+                                    photoUrl = uDoc.getString("photoUrl") ?: ""
+                                )
+                            } catch (_: Exception) {
+                                base.copy(name = "Usuário")
+                            }
                         }
                     } ?: emptyList()
 
+                    val conversations = deferredConversations.awaitAll()
                     trySend(conversations)
                     conversationDao.insertConversations(conversations.map { ConversationMapper.toEntity(it) })
                 }
@@ -74,23 +78,23 @@ class ChatRepositoryImpl @Inject constructor(
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener
                 val msgs = snapshot?.documents?.mapNotNull { doc ->
-                    try { MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) } catch (e: Exception) { null }
+                    try { MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) } catch (_: Exception) { null }
                 } ?: emptyList()
                 trySend(msgs)
-                repositoryScope.launch { msgs.forEach { messageDao.insertMessage(MessageMapper.toEntity(it, true)) } }
+                launch { 
+                    messageDao.insertMessages(msgs.map { MessageMapper.toEntity(it, true) })
+                }
             }
         awaitClose { listener.remove() }
     }
 
     override suspend fun getOrCreateConversation(currentUserId: String, otherUserId: String): Result<Conversation> {
         return try {
-            // Busca conversa onde os dois IDs existem
             val query = firestore.collection("conversations")
                 .whereEqualTo("type", ConversationType.INDIVIDUAL.name)
                 .whereArrayContains("participantIds", currentUserId)
                 .get().await()
 
-            // Filtro manual rigoroso para evitar duplicados
             val existing = query.documents.find { doc ->
                 val ids = doc.get("participantIds") as? List<*>
                 ids != null && ids.contains(otherUserId) && (ids.size == 2 || (currentUserId == otherUserId && ids.size == 1))
@@ -100,7 +104,6 @@ class ChatRepositoryImpl @Inject constructor(
                 return Result.success(ConversationMapper.fromFirestore(existing.data!!, existing.id))
             }
 
-            // Criar nova
             val id = UUID.randomUUID().toString()
             val conv = Conversation(
                 id = id,
@@ -126,7 +129,7 @@ class ChatRepositoryImpl @Inject constructor(
             
             batch.set(msgRef, MessageMapper.toFirestore(finalMsg))
             batch.update(convRef, mapOf(
-                "lastMessage" to (if (finalMsg.text.isBlank()) "Mídia" else finalMsg.text),
+                "lastMessage" to finalMsg.text.ifBlank { "Mídia" },
                 "lastMessageTime" to ts,
                 "lastMessageSenderId" to finalMsg.senderId
             ))
@@ -136,17 +139,58 @@ class ChatRepositoryImpl @Inject constructor(
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    override suspend fun getConversation(id: String): Result<Conversation> {
+    override suspend fun getConversation(conversationId: String): Result<Conversation> {
         return try {
-            val doc = firestore.collection("conversations").document(id).get().await()
-            Result.success(ConversationMapper.fromFirestore(doc.data ?: emptyMap(), id))
+            val doc = firestore.collection("conversations").document(conversationId).get().await()
+            Result.success(ConversationMapper.fromFirestore(doc.data ?: emptyMap(), conversationId))
         } catch (e: Exception) { Result.failure(e) }
     }
 
-    override suspend fun updateMessageStatus(c: String, m: String, s: MessageStatus) = Result.success(Unit)
-    override suspend fun markAllAsRead(c: String, u: String) = Result.success(Unit)
-    override suspend fun togglePinMessage(c: String, m: String, p: Boolean) = Result.success(Unit)
-    override fun searchMessages(c: String, q: String) = messageDao.searchMessages(c, q).map { it.map { m -> MessageMapper.toDomain(m) } }
-    override fun getPinnedMessage(c: String) = messageDao.getPinnedMessage(c).map { it?.let { m -> MessageMapper.toDomain(it) } }
-    override fun searchConversations(u: String, q: String) = conversationDao.searchConversations(q).map { it.map { c -> ConversationMapper.toDomain(c) } }
+    override suspend fun updateMessageStatus(
+        conversationId: String,
+        messageId: String,
+        status: MessageStatus
+    ): Result<Unit> {
+        return try {
+            firestore.collection("conversations").document(conversationId)
+                .collection("messages").document(messageId)
+                .update("status", status.name).await()
+            messageDao.updateMessageStatus(messageId, status.name)
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    override suspend fun markAllAsRead(conversationId: String, userId: String): Result<Unit> {
+        return try {
+            // Implementação básica: zerar contador de mensagens não lidas localmente
+            conversationDao.updateUnreadCount(conversationId, 0)
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    override suspend fun togglePinMessage(conversationId: String, messageId: String, isPinned: Boolean): Result<Unit> {
+        return try {
+            if (isPinned) {
+                messageDao.unpinAllMessages(conversationId)
+            }
+            messageDao.updatePinnedStatus(messageId, isPinned)
+            conversationDao.updatePinnedMessageId(conversationId, if (isPinned) messageId else "")
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    override fun searchMessages(conversationId: String, query: String): Flow<List<Message>> =
+        messageDao.searchMessages(conversationId, query).map { entities -> 
+            entities.map { MessageMapper.toDomain(it) } 
+        }
+
+    override fun getPinnedMessage(conversationId: String): Flow<Message?> =
+        messageDao.getPinnedMessage(conversationId).map { entity -> 
+            entity?.let { MessageMapper.toDomain(it) } 
+        }
+
+    override fun searchConversations(userId: String, query: String): Flow<List<Conversation>> =
+        conversationDao.searchConversations(query).map { entities -> 
+            entities.map { ConversationMapper.toDomain(it) } 
+        }
 }

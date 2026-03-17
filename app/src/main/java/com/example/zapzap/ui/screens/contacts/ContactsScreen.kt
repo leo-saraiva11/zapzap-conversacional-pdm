@@ -103,7 +103,7 @@ fun ContactsScreen(
                             contact = contact,
                             onClick = {
                                 scope.launch {
-                                    val result = viewModel.startConversation(contact.userId)
+                                    val result = viewModel.startConversation(contact.id)
                                     result?.let { (convId, name) ->
                                         onNavigateToChat(convId, name.ifBlank { contact.displayName })
                                     }
