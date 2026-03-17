@@ -8,9 +8,11 @@ import com.example.zapzap.domain.model.Conversation
 import com.example.zapzap.domain.model.ConversationType
 import com.example.zapzap.domain.model.Message
 import com.example.zapzap.domain.model.MessageStatus
+import com.example.zapzap.domain.network.FcmService
 import com.example.zapzap.domain.repository.ChatRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import android.util.Log
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
@@ -27,7 +29,8 @@ import javax.inject.Singleton
 class ChatRepositoryImpl @Inject constructor(
     private val firestore: FirebaseFirestore,
     private val messageDao: MessageDao,
-    private val conversationDao: ConversationDao
+    private val conversationDao: ConversationDao,
+    private val fcmService: FcmService
 ) : ChatRepository {
 
     override fun getConversations(userId: String): Flow<List<Conversation>> = callbackFlow {
@@ -135,6 +138,28 @@ class ChatRepositoryImpl @Inject constructor(
             ))
             
             batch.commit().await()
+            
+            // Tenta enviar notificação push via FCM Http v1
+            try {
+                // Encontra quem é o destinatário
+                val conv = getConversation(finalMsg.conversationId).getOrNull()
+                val receiverId = conv?.participantIds?.find { it != finalMsg.senderId }
+                if (receiverId != null) {
+                    val userDoc = firestore.collection("users").document(receiverId).get().await()
+                    val fcmToken = userDoc.getString("fcmToken")
+                    if (!fcmToken.isNullOrEmpty()) {
+                        fcmService.sendNotification(
+                            token = fcmToken,
+                            title = finalMsg.senderName,
+                            body = finalMsg.text.ifBlank { "📷 Mídia" },
+                            conversationId = finalMsg.conversationId
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("ChatRepository", "Erro ao tentar enviar notificação push: ${e.message}", e)
+            }
+            
             Result.success(finalMsg)
         } catch (e: Exception) { Result.failure(e) }
     }
@@ -162,8 +187,31 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun markAllAsRead(conversationId: String, userId: String): Result<Unit> {
         return try {
-            // Implementação básica: zerar contador de mensagens não lidas localmente
+            // Zerar contador de mensagens não lidas localmente
             conversationDao.updateUnreadCount(conversationId, 0)
+            
+            // Atualizar status para LIDO (READ) no Firestore para mensagens recebidas
+            val unreadQuery = firestore.collection("conversations")
+                .document(conversationId)
+                .collection("messages")
+                .whereIn("status", listOf(MessageStatus.SENT.name, MessageStatus.DELIVERED.name))
+                .get()
+                .await()
+
+            if (!unreadQuery.isEmpty) {
+                val batch = firestore.batch()
+                var hasUpdates = false
+                for (doc in unreadQuery.documents) {
+                    if (doc.getString("senderId") != userId) {
+                        batch.update(doc.reference, "status", MessageStatus.READ.name)
+                        hasUpdates = true
+                    }
+                }
+                if (hasUpdates) {
+                    batch.commit().await()
+                }
+            }
+            
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }

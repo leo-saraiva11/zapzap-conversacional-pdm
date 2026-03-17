@@ -238,7 +238,20 @@ fun MessageBubble(
                 }
                 Row(modifier = Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                     Text(DateFormatUtils.formatTime(message.timestamp), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    if (isOwnMessage) { Spacer(Modifier.width(4.dp)); Icon(Icons.Default.DoneAll, null, Modifier.size(14.dp), tint = if (message.status == MessageStatus.READ) Color.Cyan else Color.Gray) }
+                    if (isOwnMessage) { 
+                        Spacer(Modifier.width(4.dp))
+                        val statusIcon = when (message.status) {
+                            MessageStatus.SENDING -> Icons.Default.Schedule
+                            MessageStatus.SENT -> Icons.Default.Check
+                            MessageStatus.DELIVERED -> Icons.Default.DoneAll
+                            MessageStatus.READ -> Icons.Default.DoneAll
+                        }
+                        val statusColor = when (message.status) {
+                            MessageStatus.READ -> Color.Cyan
+                            else -> Color.Gray
+                        }
+                        Icon(statusIcon, null, Modifier.size(14.dp), tint = statusColor) 
+                    }
                 }
             }
         }

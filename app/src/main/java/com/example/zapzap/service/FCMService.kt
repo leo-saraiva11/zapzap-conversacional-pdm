@@ -43,6 +43,33 @@ class FCMService : FirebaseMessagingService() {
         val body = message.data["body"] ?: message.notification?.body ?: ""
         val conversationId = message.data["conversationId"] ?: ""
 
+        if (conversationId.isNotEmpty()) {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid
+            if (uid != null) {
+                val db = FirebaseFirestore.getInstance()
+                db.collection("conversations")
+                    .document(conversationId)
+                    .collection("messages")
+                    .whereEqualTo("status", "SENT")
+                    .get()
+                    .addOnSuccessListener { unreadQuery ->
+                        if (!unreadQuery.isEmpty) {
+                            val batch = db.batch()
+                            var hasUpdates = false
+                            for (doc in unreadQuery.documents) {
+                                if (doc.getString("senderId") != uid) {
+                                    batch.update(doc.reference, "status", "DELIVERED")
+                                    hasUpdates = true
+                                }
+                            }
+                            if (hasUpdates) {
+                                batch.commit()
+                            }
+                        }
+                    }
+            }
+        }
+
         showNotification(title, body, conversationId)
     }
 

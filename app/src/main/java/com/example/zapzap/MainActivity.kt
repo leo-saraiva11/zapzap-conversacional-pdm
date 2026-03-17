@@ -27,6 +27,19 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                        val permissionState = androidx.core.content.ContextCompat.checkSelfPermission(
+                            this@MainActivity, android.Manifest.permission.POST_NOTIFICATIONS
+                        )
+                        if (permissionState != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+                                androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+                            ) {}
+                            androidx.compose.runtime.LaunchedEffect(Unit) {
+                                launcher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }
+                    }
                     ZapZapNavGraph()
                 }
             }

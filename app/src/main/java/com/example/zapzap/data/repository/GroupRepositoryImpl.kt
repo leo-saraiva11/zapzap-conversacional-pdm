@@ -7,6 +7,7 @@ import com.example.zapzap.domain.model.ConversationType
 import com.example.zapzap.domain.model.User
 import com.example.zapzap.domain.repository.GroupRepository
 import com.google.firebase.firestore.FieldValue
+import com.example.zapzap.domain.network.FcmService
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -21,7 +22,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class GroupRepositoryImpl @Inject constructor(
-    private val firestore: FirebaseFirestore
+    private val firestore: FirebaseFirestore,
+    private val fcmService: FcmService
 ) : GroupRepository {
 
     private val conversationsCollection = firestore.collection("conversations")

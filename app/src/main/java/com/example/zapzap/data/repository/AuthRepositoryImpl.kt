@@ -9,6 +9,7 @@ import com.example.zapzap.domain.repository.AuthRepository
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -30,6 +31,23 @@ class AuthRepositoryImpl @Inject constructor(
 
     private val TAG = "AuthRepository"
     private val repositoryScope = CoroutineScope(Dispatchers.IO)
+
+    private fun updateDeviceFcmToken(uid: String) {
+        FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+            if (!task.isSuccessful) {
+                Log.w(TAG, "Fetching FCM registration token failed", task.exception)
+                return@addOnCompleteListener
+            }
+            val token = task.result
+            if (token != null) {
+                repositoryScope.launch {
+                    try {
+                        firestore.collection("users").document(uid).update("fcmToken", token).await()
+                    } catch (e: Exception) { Log.e(TAG, "Erro token Firestore: ${e.message}") }
+                }
+            }
+        }
+    }
 
     override val currentUserId: String?
         get() = auth.currentUser?.uid
@@ -74,6 +92,7 @@ class AuthRepositoryImpl @Inject constructor(
                     repositoryScope.launch {
                         try {
                             updateUserStatus(firebaseUser.uid, UserStatus.ONLINE)
+                            updateDeviceFcmToken(firebaseUser.uid)
                         } catch (e: Exception) { Log.e(TAG, "Erro status: ${e.message}") }
                     }
                     
@@ -103,6 +122,7 @@ class AuthRepositoryImpl @Inject constructor(
                             firebaseUser.updateProfile(profileUpdates).await()
                             saveUserToFirestore(user)
                             userDao.insertUser(UserMapper.toEntity(user))
+                            updateDeviceFcmToken(firebaseUser.uid)
                         } catch (e: Exception) {
                             Log.e(TAG, "Erro background registro: ${e.message}")
                         }

@@ -40,6 +40,12 @@ android {
     buildFeatures {
         compose = true
     }
+    packaging {
+        resources {
+            excludes += "META-INF/INDEX.LIST"
+            excludes += "META-INF/DEPENDENCIES"
+        }
+    }
 }
 
 dependencies {
@@ -80,6 +86,8 @@ dependencies {
     implementation(libs.firebase.database.ktx)
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.firebase.storage.ktx)
+    implementation(libs.google.auth.library.oauth2.http)
+    implementation(libs.okhttp)
 
     // Google Play Services
     implementation(libs.play.services.auth)

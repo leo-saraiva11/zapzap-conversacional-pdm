@@ -22,6 +22,8 @@ coroutines = "1.9.0"
 datastore = "1.1.1"
 supabase = "3.0.3"
 ktor = "3.0.3"
+googleAuth = "1.23.0"
+okHttp = "4.12.0"
 
 [libraries]
 # AndroidX Core
@@ -61,6 +63,10 @@ firebase-firestore-ktx = { group = "com.google.firebase", name = "firebase-fires
 firebase-database-ktx = { group = "com.google.firebase", name = "firebase-database-ktx" }
 firebase-messaging-ktx = { group = "com.google.firebase", name = "firebase-messaging-ktx" }
 firebase-storage-ktx = { group = "com.google.firebase", name = "firebase-storage-ktx" }
+google-auth-library-oauth2-http = { group = "com.google.auth", name = "google-auth-library-oauth2-http", version.ref = "googleAuth" }
+
+# OkHttp
+okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version.ref = "okHttp" }
 
 # Google Play Services
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }

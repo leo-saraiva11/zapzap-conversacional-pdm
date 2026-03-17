@@ -2,4 +2,5 @@
 <resources>
     <string name="app_name">ZapZap</string>
     <string name="default_notification_channel_id">zapzap_messages</string>
+    <string name="firebase_project_id">zapzap-ea127</string>
 </resources>
