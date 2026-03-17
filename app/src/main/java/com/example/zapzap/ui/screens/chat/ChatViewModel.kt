@@ -1,6 +1,10 @@
 package com.example.zapzap.ui.screens.chat
 
+import android.content.Context
+import android.media.MediaRecorder
 import android.net.Uri
+import android.os.Build
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zapzap.domain.model.Message
@@ -13,12 +17,9 @@ import com.example.zapzap.domain.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.io.File
 import javax.inject.Inject
 
-/**
- * ViewModel do chat.
- * Gerencia mensagens em tempo real, envio, mídia, fixar e busca.
- */
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
@@ -33,44 +34,32 @@ class ChatViewModel @Inject constructor(
     private val _messageText = MutableStateFlow("")
     val messageText: StateFlow<String> = _messageText.asStateFlow()
 
-    private val _searchQuery = MutableStateFlow("")
-    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
-
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching.asStateFlow()
+
+    private val _searchQuery = MutableStateFlow("")
+    val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
     private val _isRecording = MutableStateFlow(false)
     val isRecording: StateFlow<Boolean> = _isRecording.asStateFlow()
 
+    private var mediaRecorder: MediaRecorder? = null
+    private var audioFile: File? = null
+
     val currentUserId: String? get() = authRepository.currentUserId
 
-    // Mensagens em tempo real
     val messages: StateFlow<List<Message>> = _conversationId
         .filter { it.isNotBlank() }
         .flatMapLatest { chatRepository.getMessages(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Mensagem fixada
     val pinnedMessage: StateFlow<Message?> = _conversationId
         .filter { it.isNotBlank() }
         .flatMapLatest { chatRepository.getPinnedMessage(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    // Resultados da busca
-    val searchResults: StateFlow<List<Message>> = combine(
-        _conversationId,
-        _searchQuery
-    ) { convId, query ->
-        Pair(convId, query)
-    }.filter { it.first.isNotBlank() && it.second.isNotBlank() }
-        .flatMapLatest { (convId, query) ->
-            chatRepository.searchMessages(convId, query)
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
     fun setConversationId(id: String) {
         _conversationId.value = id
-        // Marcar todas como lidas
         viewModelScope.launch {
             authRepository.currentUserId?.let { userId ->
                 chatRepository.markAllAsRead(id, userId)
@@ -124,11 +113,49 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    fun startRecording(context: Context) {
+        try {
+            audioFile = File(context.cacheDir, "audio_${System.currentTimeMillis()}.mp3")
+            mediaRecorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                MediaRecorder(context)
+            } else {
+                MediaRecorder()
+            }.apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                setOutputFile(audioFile?.absolutePath)
+                prepare()
+                start()
+            }
+            _isRecording.value = true
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Erro ao iniciar gravação", e)
+        }
+    }
+
+    fun stopRecording(context: Context) {
+        try {
+            mediaRecorder?.apply {
+                stop()
+                release()
+            }
+            mediaRecorder = null
+            _isRecording.value = false
+
+            audioFile?.let { file ->
+                val uri = Uri.fromFile(file)
+                sendMediaMessage(uri, MessageType.AUDIO)
+            }
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Erro ao parar gravação", e)
+        }
+    }
+
     fun sendLocationMessage(latitude: Double, longitude: Double) {
         viewModelScope.launch {
             val userId = authRepository.currentUserId ?: return@launch
             val user = userRepository.getUserById(userId).getOrNull()
-
             val message = Message(
                 conversationId = _conversationId.value,
                 senderId = userId,
@@ -136,7 +163,7 @@ class ChatViewModel @Inject constructor(
                 type = MessageType.LOCATION,
                 latitude = latitude,
                 longitude = longitude,
-                text = "📍 Localização",
+                text = "Localização",
                 status = MessageStatus.SENDING
             )
             chatRepository.sendMessage(message)
@@ -145,19 +172,13 @@ class ChatViewModel @Inject constructor(
 
     fun togglePinMessage(messageId: String, currentlyPinned: Boolean) {
         viewModelScope.launch {
-            chatRepository.togglePinMessage(
-                _conversationId.value,
-                messageId,
-                !currentlyPinned
-            )
+            chatRepository.togglePinMessage(_conversationId.value, messageId, !currentlyPinned)
         }
     }
 
     fun toggleSearch() {
         _isSearching.value = !_isSearching.value
-        if (!_isSearching.value) {
-            _searchQuery.value = ""
-        }
+        if (!_isSearching.value) _searchQuery.value = ""
     }
 
     fun updateSearchQuery(query: String) {

@@ -4,10 +4,8 @@ import com.example.zapzap.data.local.entity.MessageEntity
 import com.example.zapzap.domain.model.Message
 import com.example.zapzap.domain.model.MessageStatus
 import com.example.zapzap.domain.model.MessageType
+import com.google.firebase.Timestamp
 
-/**
- * Mapper para converter entre MessageEntity (Room) e Message (Domain).
- */
 object MessageMapper {
     fun toDomain(entity: MessageEntity): Message = Message(
         id = entity.id,
@@ -44,21 +42,31 @@ object MessageMapper {
         isSynced = isSynced
     )
 
-    fun fromFirestore(map: Map<String, Any?>, messageId: String): Message = Message(
-        id = messageId,
-        conversationId = map["conversationId"] as? String ?: "",
-        senderId = map["senderId"] as? String ?: "",
-        senderName = map["senderName"] as? String ?: "",
-        text = map["text"] as? String ?: "",
-        type = MessageType.fromString(map["type"] as? String ?: "TEXT"),
-        mediaUrl = map["mediaUrl"] as? String ?: "",
-        latitude = (map["latitude"] as? Number)?.toDouble() ?: 0.0,
-        longitude = (map["longitude"] as? Number)?.toDouble() ?: 0.0,
-        timestamp = map["timestamp"] as? Long ?: 0L,
-        status = MessageStatus.fromString(map["status"] as? String ?: "SENT"),
-        isPinned = map["isPinned"] as? Boolean ?: false,
-        isEncrypted = map["isEncrypted"] as? Boolean ?: false
-    )
+    fun fromFirestore(map: Map<String, Any?>, messageId: String): Message {
+        // CORREÇÃO CRÍTICA: Tratar Timestamp do Firebase e números diversos
+        val ts = when (val t = map["timestamp"]) {
+            is Timestamp -> t.toDate().time
+            is Long -> t
+            is Number -> t.toLong()
+            else -> System.currentTimeMillis()
+        }
+
+        return Message(
+            id = messageId,
+            conversationId = map["conversationId"] as? String ?: "",
+            senderId = map["senderId"] as? String ?: "",
+            senderName = map["senderName"] as? String ?: "",
+            text = map["text"] as? String ?: "",
+            type = MessageType.fromString(map["type"] as? String ?: "TEXT"),
+            mediaUrl = map["mediaUrl"] as? String ?: "",
+            latitude = (map["latitude"] as? Number)?.toDouble() ?: 0.0,
+            longitude = (map["longitude"] as? Number)?.toDouble() ?: 0.0,
+            timestamp = if (ts <= 0) System.currentTimeMillis() else ts,
+            status = MessageStatus.fromString(map["status"] as? String ?: "SENT"),
+            isPinned = map["isPinned"] as? Boolean ?: false,
+            isEncrypted = map["isEncrypted"] as? Boolean ?: false
+        )
+    }
 
     fun toFirestore(message: Message): Map<String, Any?> = mapOf(
         "conversationId" to message.conversationId,
@@ -69,7 +77,7 @@ object MessageMapper {
         "mediaUrl" to message.mediaUrl,
         "latitude" to message.latitude,
         "longitude" to message.longitude,
-        "timestamp" to message.timestamp,
+        "timestamp" to (if (message.timestamp <= 0) System.currentTimeMillis() else message.timestamp),
         "status" to message.status.name,
         "isPinned" to message.isPinned,
         "isEncrypted" to message.isEncrypted

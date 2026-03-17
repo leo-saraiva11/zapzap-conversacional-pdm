@@ -6,13 +6,14 @@ import com.example.zapzap.domain.model.Conversation
 import com.example.zapzap.domain.repository.AuthRepository
 import com.example.zapzap.domain.repository.ChatRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
  * ViewModel para a lista de conversas.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ConversationsViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
@@ -22,10 +23,16 @@ class ConversationsViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val conversations: StateFlow<List<Conversation>> = flow {
-        val userId = authRepository.currentUserId ?: return@flow
-        emitAll(chatRepository.getConversations(userId))
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    // Usar o fluxo do currentUser do AuthRepository para reagir ao login/logout
+    val conversations: StateFlow<List<Conversation>> = authRepository.currentUser
+        .flatMapLatest { user ->
+            if (user != null) {
+                chatRepository.getConversations(user.uid)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val filteredConversations: StateFlow<List<Conversation>> = combine(
         conversations,

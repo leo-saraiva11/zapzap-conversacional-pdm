@@ -5,9 +5,6 @@ import com.example.zapzap.domain.model.Conversation
 import com.example.zapzap.domain.model.ConversationType
 import org.json.JSONArray
 
-/**
- * Mapper para converter entre ConversationEntity (Room) e Conversation (Domain).
- */
 object ConversationMapper {
     fun toDomain(entity: ConversationEntity): Conversation = Conversation(
         id = entity.id,
@@ -39,21 +36,25 @@ object ConversationMapper {
         createdBy = conversation.createdBy
     )
 
-    @Suppress("UNCHECKED_CAST")
-    fun fromFirestore(map: Map<String, Any?>, conversationId: String): Conversation = Conversation(
-        id = conversationId,
-        name = map["name"] as? String ?: "",
-        type = ConversationType.fromString(map["type"] as? String ?: "INDIVIDUAL"),
-        photoUrl = map["photoUrl"] as? String ?: "",
-        participantIds = (map["participantIds"] as? List<String>) ?: emptyList(),
-        lastMessage = map["lastMessage"] as? String ?: "",
-        lastMessageTime = map["lastMessageTime"] as? Long ?: 0L,
-        lastMessageSenderId = map["lastMessageSenderId"] as? String ?: "",
-        unreadCount = (map["unreadCount"] as? Number)?.toInt() ?: 0,
-        pinnedMessageId = map["pinnedMessageId"] as? String ?: "",
-        createdAt = map["createdAt"] as? Long ?: 0L,
-        createdBy = map["createdBy"] as? String ?: ""
-    )
+    fun fromFirestore(map: Map<String, Any?>, conversationId: String): Conversation {
+        val rawParticipants = map["participantIds"] as? List<*>
+        val participants = rawParticipants?.mapNotNull { it?.toString() } ?: emptyList()
+
+        return Conversation(
+            id = conversationId,
+            name = map["name"] as? String ?: "",
+            type = ConversationType.fromString(map["type"] as? String ?: "INDIVIDUAL"),
+            photoUrl = map["photoUrl"] as? String ?: "",
+            participantIds = participants,
+            lastMessage = map["lastMessage"] as? String ?: "",
+            lastMessageTime = (map["lastMessageTime"] as? Number)?.toLong() ?: 0L,
+            lastMessageSenderId = map["lastMessageSenderId"] as? String ?: "",
+            unreadCount = (map["unreadCount"] as? Number)?.toInt() ?: 0,
+            pinnedMessageId = map["pinnedMessageId"] as? String ?: "",
+            createdAt = (map["createdAt"] as? Number)?.toLong() ?: 0L,
+            createdBy = map["createdBy"] as? String ?: ""
+        )
+    }
 
     fun toFirestore(conversation: Conversation): Map<String, Any?> = mapOf(
         "name" to conversation.name,
@@ -69,19 +70,9 @@ object ConversationMapper {
         "createdBy" to conversation.createdBy
     )
 
-    private fun serializeList(list: List<String>): String {
-        val jsonArray = JSONArray()
-        list.forEach { jsonArray.put(it) }
-        return jsonArray.toString()
-    }
-
-    private fun deserializeList(json: String): List<String> {
-        if (json.isBlank()) return emptyList()
-        return try {
-            val jsonArray = JSONArray(json)
-            (0 until jsonArray.length()).map { jsonArray.getString(it) }
-        } catch (e: Exception) {
-            emptyList()
-        }
-    }
+    private fun serializeList(list: List<String>): String = JSONArray(list).toString()
+    private fun deserializeList(json: String): List<String> = try {
+        val arr = JSONArray(json)
+        (0 until arr.length()).map { arr.getString(it) }
+    } catch (e: Exception) { emptyList() }
 }
