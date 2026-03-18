@@ -8,6 +8,7 @@ import com.example.zapzap.domain.model.Conversation
 import com.example.zapzap.domain.model.ConversationType
 import com.example.zapzap.domain.model.Message
 import com.example.zapzap.domain.model.MessageStatus
+import com.example.zapzap.domain.model.MessageType
 import com.example.zapzap.domain.network.FcmService
 import com.example.zapzap.domain.repository.ChatRepository
 import com.google.firebase.firestore.FirebaseFirestore
@@ -81,7 +82,7 @@ class ChatRepositoryImpl @Inject constructor(
         awaitClose { listener.remove() }
     }
 
-    override fun getMessages(conversationId: String): Flow<List<Message>> = callbackFlow {
+    override fun getMessages(conversationId: String, userId: String): Flow<List<Message>> = callbackFlow {
         // Observa mudanças locais também! (Optimistic UI e Offline Cache)
         val roomFlow = messageDao.getMessagesByConversation(conversationId)
         
@@ -93,12 +94,23 @@ class ChatRepositoryImpl @Inject constructor(
                 if (error != null) return@addSnapshotListener
                 val msgs = snapshot?.documents?.mapNotNull { doc ->
                     try { 
-                        val m = MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) 
-                        if (m.type == MessageType.TEXT && m.isEncrypted) {
+                        val m = MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id)
+                        
+                        // Decrypt if text
+                        val finalMsg = if (m.type == MessageType.TEXT && m.isEncrypted) {
                             m.copy(text = com.example.zapzap.util.EncryptionHelper.decrypt(m.text))
                         } else {
                             m
                         }
+
+                        // Mark as READ if we are the recipient and it's not READ yet
+                        if (finalMsg.senderId != userId && finalMsg.status != MessageStatus.READ) {
+                            launch {
+                                updateMessageStatus(conversationId, finalMsg.id, MessageStatus.READ)
+                            }
+                        }
+                        
+                        finalMsg
                     } catch (_: Exception) { null }
                 } ?: emptyList()
                 
@@ -110,7 +122,7 @@ class ChatRepositoryImpl @Inject constructor(
         // Emite o fluxo do Room que vai ser atualizado pelo Firestore listener e pelas mensagens locais enviadas    
         val job = launch {
             roomFlow.collect { entities ->
-                trySend(entities.map { MessageMapper.fromEntity(it) })
+                trySend(entities.map { MessageMapper.toDomain(it) })
             }
         }
         
@@ -174,15 +186,16 @@ class ChatRepositoryImpl @Inject constructor(
             val msgRef = firestore.collection("conversations").document(finalMsg.conversationId).collection("messages").document(id)
             val convRef = firestore.collection("conversations").document(finalMsg.conversationId)
             
-            // Assume "SENT" ao conseguir chegar no Firestore. Encrypta APENAS o texto que vai para a nuvem
             val textToSend = if (finalMsg.type == MessageType.TEXT) com.example.zapzap.util.EncryptionHelper.encrypt(finalMsg.text) else finalMsg.text
             val sentMsg = finalMsg.copy(status = MessageStatus.SENT, text = textToSend, isEncrypted = finalMsg.type == MessageType.TEXT)
+            val textForConv = if (finalMsg.type == MessageType.TEXT) textToSend else "📷 Mídia"
             
             batch.set(msgRef, MessageMapper.toFirestore(sentMsg))
             batch.update(convRef, mapOf(
-                "lastMessage" to if (finalMsg.type == MessageType.TEXT) "Mensagem Criptografada" else "Mídia",
+                "lastMessage" to textForConv,
                 "lastMessageTime" to ts,
-                "lastMessageSenderId" to sentMsg.senderId
+                "lastMessageSenderId" to sentMsg.senderId,
+                "lastMessageStatus" to sentMsg.status.name
             ))
             
             batch.commit().await()
@@ -271,13 +284,39 @@ class ChatRepositoryImpl @Inject constructor(
 
     override suspend fun togglePinMessage(conversationId: String, messageId: String, isPinned: Boolean): Result<Unit> {
         return try {
+            val pinnedId = if (isPinned) messageId else ""
+            val batch = firestore.batch()
+            
+            val convRef = firestore.collection("conversations").document(conversationId)
+            batch.update(convRef, "pinnedMessageId", pinnedId)
+            
+            // Tenta atualizar o campo isPinned na mensagem para que outros dispositivos vejam via snapshot listener
+            val msgRef = convRef.collection("messages").document(messageId)
+            batch.update(msgRef, "isPinned", isPinned)
+            
+            batch.commit().await()
+            
             if (isPinned) {
                 messageDao.unpinAllMessages(conversationId)
             }
             messageDao.updatePinnedStatus(messageId, isPinned)
-            conversationDao.updatePinnedMessageId(conversationId, if (isPinned) messageId else "")
+            conversationDao.updatePinnedMessageId(conversationId, pinnedId)
             Result.success(Unit)
-        } catch (e: Exception) { Result.failure(e) }
+        } catch (e: Exception) { 
+            // Fallback: se a mensagem não existir mais ou algo falhar, tenta atualizar apenas a conversa
+            try {
+                val pinnedId = if (isPinned) messageId else ""
+                firestore.collection("conversations").document(conversationId)
+                    .update("pinnedMessageId", pinnedId).await()
+                
+                if (isPinned) messageDao.unpinAllMessages(conversationId)
+                messageDao.updatePinnedStatus(messageId, isPinned)
+                conversationDao.updatePinnedMessageId(conversationId, pinnedId)
+                Result.success(Unit)
+            } catch (e2: Exception) {
+                Result.failure(e2)
+            }
+        }
     }
 
     override fun searchMessages(conversationId: String, query: String): Flow<List<Message>> =
@@ -289,6 +328,38 @@ class ChatRepositoryImpl @Inject constructor(
         messageDao.getPinnedMessage(conversationId).map { entity -> 
             entity?.let { MessageMapper.toDomain(it) } 
         }
+
+    override suspend fun deleteMessage(conversationId: String, messageId: String): Result<Unit> {
+        return try {
+            firestore.collection("conversations")
+                .document(conversationId)
+                .collection("messages")
+                .document(messageId)
+                .delete()
+                .await()
+            
+            messageDao.deleteMessageById(messageId)
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    override suspend fun editMessage(conversationId: String, messageId: String, newText: String): Result<Unit> {
+        return try {
+            val encryptedText = com.example.zapzap.util.EncryptionHelper.encrypt(newText)
+            firestore.collection("conversations")
+                .document(conversationId)
+                .collection("messages")
+                .document(messageId)
+                .update(mapOf(
+                    "text" to encryptedText,
+                    "isEdited" to true
+                ))
+                .await()
+            
+            messageDao.updateMessageText(messageId, newText)
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
 
     override fun searchConversations(userId: String, query: String): Flow<List<Conversation>> =
         conversationDao.searchConversations(query).map { entities -> 

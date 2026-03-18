@@ -8,12 +8,16 @@ import android.media.MediaPlayer
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +50,7 @@ import com.example.zapzap.domain.model.MessageStatus
 import com.example.zapzap.domain.model.MessageType
 import com.example.zapzap.ui.theme.*
 import com.example.zapzap.ui.util.DateFormatUtils
+import com.example.zapzap.ui.util.ImageUtils
 import com.google.android.gms.location.LocationServices
 import java.io.File
 import java.text.SimpleDateFormat
@@ -71,9 +76,12 @@ fun ChatScreen(
     var showAttachMenu by remember { mutableStateOf(false) }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
+    var editingMessage by remember { mutableStateOf<Message?>(null) }
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
 
     LaunchedEffect(conversationId) {
         viewModel.setConversationId(conversationId)
+        viewModel.fetchMessages(conversationId)
     }
 
     LaunchedEffect(messages.size) {
@@ -113,7 +121,7 @@ fun ChatScreen(
 
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            val uri = createTempImageUri(context)
+            val uri = ImageUtils.createTempImageUri(context)
             photoUri = uri
             cameraLauncher.launch(uri)
         }
@@ -133,6 +141,9 @@ fun ChatScreen(
     val groupMembers by viewModel.groupMembers.collectAsState()
     var showGroupInfo by remember { mutableStateOf(false) }
 
+    val currentConversation by viewModel.currentConversation.collectAsState()
+    val isGroupAdmin = currentConversation?.createdBy == viewModel.currentUserId
+
     // Dialog: Info do Grupo
     if (showGroupInfo) {
         Dialog(onDismissRequest = { showGroupInfo = false }) {
@@ -141,6 +152,26 @@ fun ChatScreen(
                 shape = RoundedCornerShape(12.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    if (isGroupAdmin) {
+                        var editName by remember { mutableStateOf(currentConversation?.name ?: conversationName) }
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            label = { Text("Nome do Grupo") },
+                            trailingIcon = {
+                                IconButton(onClick = { viewModel.renameGroup(editName) }) {
+                                    Icon(Icons.Default.Check, contentDescription = "Salvar")
+                                }
+                            },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    } else {
+                        Text(currentConversation?.name ?: conversationName, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
                     Text("Participantes do Grupo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     
@@ -169,7 +200,13 @@ fun ChatScreen(
                                         }
                                     }
                                     Spacer(modifier = Modifier.width(12.dp))
-                                    Text(member.displayName, style = MaterialTheme.typography.bodyLarge)
+                                    Text(member.displayName, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                                    
+                                    if (isGroupAdmin && member.uid != viewModel.currentUserId) {
+                                        IconButton(onClick = { viewModel.removeParticipant(member.uid) }) {
+                                            Icon(Icons.Default.Delete, contentDescription = "Remover participante", tint = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -215,7 +252,6 @@ fun ChatScreen(
                         }
                         IconButton(onClick = { 
                             showGroupInfo = true 
-                            viewModel.fetchGroupMembers()
                         }) {
                             Icon(Icons.Default.Group, contentDescription = "Ver Grupo", tint = Color.White)
                         }
@@ -227,29 +263,60 @@ fun ChatScreen(
     ) { padding ->
         Column(modifier = Modifier.fillMaxSize().padding(padding)) {
             pinnedMessage?.let { PinnedMessageBar(it, onUnpin = { viewModel.togglePinMessage(it.id, true) }) }
+            Box(modifier = Modifier.weight(1f)) {
+                // Background image like WhatsApp (Subtle texture or icon)
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .alpha(0.05f)
+                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                )
 
-            LazyColumn(
-                modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                state = listState,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                val grouped = messages.groupBy { DateFormatUtils.formatDate(it.timestamp) }
-                grouped.forEach { (date, msgs) ->
-                    item {
-                        Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), Alignment.Center) {
-                            Surface(shape = RoundedCornerShape(8.dp), color = Color.LightGray.copy(0.3f)) {
-                                Text(date, Modifier.padding(horizontal = 8.dp, vertical = 2.dp), style = MaterialTheme.typography.bodySmall)
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 8.dp),
+                    state = listState,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    val filteredMessages = if (isSearching && searchQuery.isNotBlank()) {
+                        messages.filter { it.text.contains(searchQuery, ignoreCase = true) }
+                    } else {
+                        messages
+                    }
+                    
+                    val groupedByDate = filteredMessages.groupBy { DateFormatUtils.formatDate(it.timestamp) }
+                    
+                    for ((date, msgs) in groupedByDate) {
+                        item {
+                            Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), Alignment.Center) {
+                                Surface(shape = RoundedCornerShape(8.dp), color = Color(0xFFD1E4B3)) { // Verde claro estilo Zap
+                                    Text(date, Modifier.padding(horizontal = 12.dp, vertical = 4.dp), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
-                    }
-                    items(msgs, key = { it.id }) { msg ->
-                        MessageBubble(
-                            message = msg,
-                            isOwnMessage = msg.senderId == viewModel.currentUserId,
-                            searchQuery = searchQuery,
-                            onLongPress = { viewModel.togglePinMessage(msg.id, msg.isPinned) },
-                            onImageClick = { fullScreenImageUrl = it }
-                        )
+                        itemsIndexed(msgs, key = { _, m -> m.id }) { index, msg ->
+                            val prevMsg = msgs.getOrNull(index - 1)
+                            val nextMsg = msgs.getOrNull(index + 1)
+                            val isFirstInGroup = prevMsg?.senderId != msg.senderId
+                            val isLastInGroup = nextMsg?.senderId != msg.senderId
+                            
+                            MessageBubble(
+                                message = msg,
+                                isOwnMessage = msg.senderId == viewModel.currentUserId,
+                                searchQuery = searchQuery,
+                                isFirstInGroup = isFirstInGroup,
+                                isLastInGroup = isLastInGroup,
+                                onPinClick = { viewModel.togglePinMessage(msg.id, msg.isPinned) },
+                                onDeleteClick = { viewModel.deleteMessage(msg.id) },
+                                onEditClick = { 
+                                    editingMessage = msg
+                                    viewModel.updateMessageText(msg.text)
+                                },
+                                onCopyClick = {
+                                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(msg.text))
+                                },
+                                onImageClick = { fullScreenImageUrl = it }
+                            )
+                        }
                     }
                 }
             }
@@ -257,17 +324,51 @@ fun ChatScreen(
             ChatInputBar(
                 messageText = messageText,
                 isRecording = isRecording,
+                isEditing = editingMessage != null,
                 onMessageChange = { viewModel.updateMessageText(it) },
-                onSendMessage = { viewModel.sendTextMessage() },
-                onAttachClick = { showAttachMenu = !showAttachMenu },
-                onCameraClick = { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) },
-                onLocationClick = { locationPermissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) },
-                onVoiceStart = { voicePermissionLauncher.launch(Manifest.permission.RECORD_AUDIO) },
-                onVoiceStop = { viewModel.stopRecording(context) }
+                onSendMessage = { 
+                    if (editingMessage != null) {
+                        viewModel.editMessage(editingMessage!!.id, messageText)
+                        editingMessage = null
+                        viewModel.updateMessageText("")
+                    } else {
+                        viewModel.sendMessage(messageText) 
+                    }
+                },
+                onCancelEdit = {
+                    editingMessage = null
+                    viewModel.updateMessageText("")
+                },
+                onAttachClick = { showAttachMenu = true },
+                onCameraClick = {
+                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                },
+                onLocationClick = {
+                    locationPermissionLauncher.launch(arrayOf(
+                        android.Manifest.permission.ACCESS_FINE_LOCATION,
+                        android.Manifest.permission.ACCESS_COARSE_LOCATION
+                    ))
+                },
+                onVoiceStart = { 
+                    voicePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+                },
+                onVoiceStop = { viewModel.stopRecording(context) },
+                onVoiceCancel = { viewModel.cancelRecording() }
             )
 
             if (showAttachMenu) {
-                AttachmentMenu(onImageClick = { galleryLauncher.launch("image/*") }, onVideoClick = { galleryLauncher.launch("video/*") }, onFileClick = { fileLauncher.launch("*/*") }, onDismiss = { showAttachMenu = false })
+                AttachmentMenu(
+                    onImageClick = { galleryLauncher.launch("image/*") },
+                    onLocationClick = {
+                        showAttachMenu = false
+                        locationPermissionLauncher.launch(arrayOf(
+                            android.Manifest.permission.ACCESS_FINE_LOCATION,
+                            android.Manifest.permission.ACCESS_COARSE_LOCATION
+                        ))
+                    },
+                    onFileClick = { fileLauncher.launch("*/*") },
+                    onDismiss = { showAttachMenu = false }
+                )
             }
         }
     }
@@ -278,26 +379,179 @@ fun MessageBubble(
     message: Message,
     isOwnMessage: Boolean,
     searchQuery: String = "",
-    onLongPress: () -> Unit = {},
+    isFirstInGroup: Boolean = true,
+    isLastInGroup: Boolean = true,
+    onPinClick: () -> Unit = {},
+    onDeleteClick: () -> Unit = {},
+    onEditClick: () -> Unit = {},
+    onCopyClick: () -> Unit = {},
     onImageClick: (String) -> Unit
 ) {
+    var showMenu by remember { mutableStateOf(false) }
     val context = LocalContext.current
-    val bubbleColor = if (isOwnMessage) BubbleSent else BubbleReceived
+    val bubbleColor = if (isOwnMessage) Color(0xFFE7FFDB) else Color.White
     
-    Box(modifier = Modifier.fillMaxWidth().padding(start = if (isOwnMessage) 64.dp else 0.dp, end = if (isOwnMessage) 0.dp else 64.dp), contentAlignment = if (isOwnMessage) Alignment.CenterEnd else Alignment.CenterStart) {
-        Surface(shape = RoundedCornerShape(12.dp), color = bubbleColor, modifier = Modifier.pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) }) {
-            Column(modifier = Modifier.padding(8.dp)) {
+    // Configura o arredondamento conforme a posição no grupo
+    val shape = RoundedCornerShape(
+        topStart = if (!isOwnMessage && isFirstInGroup) 0.dp else 12.dp,
+        topEnd = if (isOwnMessage && isFirstInGroup) 0.dp else 12.dp,
+        bottomStart = 12.dp,
+        bottomEnd = 12.dp
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                top = if (isFirstInGroup) 4.dp else 1.dp,
+                bottom = if (isLastInGroup) 4.dp else 1.dp,
+                start = if (isOwnMessage) 64.dp else 0.dp,
+                end = if (isOwnMessage) 0.dp else 64.dp
+            ),
+        contentAlignment = if (isOwnMessage) Alignment.CenterEnd else Alignment.CenterStart
+    ) {
+        Surface(
+            shape = shape,
+            color = bubbleColor,
+            shadowElevation = 1.dp,
+            modifier = Modifier.pointerInput(message.id) {
+                detectTapGestures(
+                    onLongPress = { showMenu = true },
+                    onTap = { /* Se quiser clique simples pra abrir mídia etc */ }
+                )
+            }
+        ) {
+            Box {
+                // Menu suspenso de cada mensagem (setinha ou clique longo)
+                DropdownMenu(
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(if (message.isPinned) "Desafixar" else "Fixar") },
+                        onClick = { onPinClick(); showMenu = false },
+                        leadingIcon = { Icon(Icons.Default.PushPin, null, modifier = Modifier.size(18.dp)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Copiar texto") },
+                        onClick = { onCopyClick(); showMenu = false },
+                        leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp)) }
+                    )
+                    if (isOwnMessage) {
+                        DropdownMenuItem(
+                            text = { Text("Editar") },
+                            onClick = { onEditClick(); showMenu = false },
+                            leadingIcon = { Icon(Icons.Default.Edit, null, modifier = Modifier.size(18.dp)) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Apagar para todos", color = Color.Red) },
+                            onClick = { onDeleteClick(); showMenu = false },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, modifier = Modifier.size(18.dp), tint = Color.Red) }
+                        )
+                    }
+                }
+            Column(modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                if (!isOwnMessage && isFirstInGroup && message.senderId.isNotEmpty()) {
+                    Text(
+                        text = message.senderName,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color(0xFF075E54),
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                }
+
                 when (message.type) {
-                    MessageType.TEXT -> Text(text = message.text, style = MaterialTheme.typography.bodyMedium)
-                    MessageType.IMAGE -> AsyncImage(model = message.mediaUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().heightIn(max = 250.dp).clip(RoundedCornerShape(8.dp)).clickable { onImageClick(message.mediaUrl) }, contentScale = ContentScale.Crop)
+                    MessageType.TEXT -> {
+                        if (searchQuery.isNotBlank() && message.text.contains(searchQuery, ignoreCase = true)) {
+                            val annotatedString = buildAnnotatedString {
+                                val textStr = message.text
+                                var currentPos = 0
+                                var index = textStr.indexOf(searchQuery, ignoreCase = true)
+                                while (index >= 0) {
+                                    append(textStr.substring(currentPos, index))
+                                    withStyle(style = SpanStyle(background = Color.Yellow, color = Color.Black)) {
+                                        append(textStr.substring(index, index + searchQuery.length))
+                                    }
+                                    currentPos = index + searchQuery.length
+                                    index = textStr.indexOf(searchQuery, currentPos, ignoreCase = true)
+                                }
+                                append(textStr.substring(currentPos))
+                            }
+                            Text(text = annotatedString, style = MaterialTheme.typography.bodyMedium)
+                        } else {
+                            Text(text = message.text, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    MessageType.IMAGE -> {
+                        AsyncImage(
+                            model = message.mediaUrl,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .widthIn(max = 250.dp)
+                                .heightIn(max = 250.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .clickable { onImageClick(message.mediaUrl) },
+                            contentScale = ContentScale.Crop
+                        )
+                    }
                     MessageType.AUDIO -> AudioPlayerMessage(url = message.mediaUrl)
-                    MessageType.LOCATION -> Text("📍 Localização", Modifier.clickable { val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:${message.latitude},${message.longitude}?q=${message.latitude},${message.longitude}")); context.startActivity(intent) }, color = Color.Blue, fontWeight = FontWeight.Bold)
-                    MessageType.FILE -> Row(Modifier.clickable { val intent = Intent(Intent.ACTION_VIEW, Uri.parse(message.mediaUrl)); context.startActivity(intent) }, verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.InsertDriveFile, null); Spacer(Modifier.width(8.dp)); Text("Arquivo", style = MaterialTheme.typography.bodyMedium) }
+                    MessageType.LOCATION -> {
+                        Column(Modifier.clickable {
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:${message.latitude},${message.longitude}?q=${message.latitude},${message.longitude}"))
+                            context.startActivity(intent)
+                        }) {
+                            Text("📍 Localização", color = Color.Blue, fontWeight = FontWeight.Bold)
+                            Spacer(Modifier.height(4.dp))
+                            // Poderia carregar um mapa estático aqui se tivesse chave
+                            Surface(Modifier.size(200.dp, 100.dp), color = Color.LightGray, shape = RoundedCornerShape(4.dp)) {
+                                Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.LocationOn, null) }
+                            }
+                        }
+                    }
+                    MessageType.FILE -> {
+                        Row(
+                            Modifier.clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(message.mediaUrl))
+                                context.startActivity(intent)
+                            },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.InsertDriveFile, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Arquivo", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                     else -> Text(message.text)
                 }
-                Row(modifier = Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
-                    Text(DateFormatUtils.formatTime(message.timestamp), style = MaterialTheme.typography.labelSmall, color = Color.Gray)
-                    if (isOwnMessage) { 
+
+                Row(
+                    modifier = Modifier.align(Alignment.End),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (message.isEdited) {
+                        Text(
+                            "Editada",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(end = 4.dp),
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                        )
+                    }
+                    if (message.isPinned) {
+                        Icon(
+                            imageVector = Icons.Default.PushPin,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp).padding(end = 4.dp),
+                            tint = Color.Gray
+                        )
+                    }
+                    Text(
+                        DateFormatUtils.formatTime(message.timestamp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.Gray
+                    )
+                    if (isOwnMessage) {
                         Spacer(Modifier.width(4.dp))
                         val statusIcon = when (message.status) {
                             MessageStatus.SENDING -> Icons.Default.Schedule
@@ -305,18 +559,18 @@ fun MessageBubble(
                             MessageStatus.DELIVERED -> Icons.Default.DoneAll
                             MessageStatus.READ -> Icons.Default.DoneAll
                         }
-                        // Azul se foi lida. Cinza escuro se foi apenas entregue.
                         val statusColor = when (message.status) {
-                            MessageStatus.READ -> Color(0xFF34B7F1) // Azul tipo WhatsApp
-                            MessageStatus.DELIVERED -> Color.DarkGray
-                            else -> Color.Gray
+                            MessageStatus.READ -> Color(0xFF34B7F1)
+                            MessageStatus.DELIVERED -> Color.Gray
+                            else -> Color.LightGray
                         }
-                        Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor) 
+                        Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor)
                     }
                 }
             }
         }
     }
+}
 }
 
 @Composable
@@ -354,26 +608,83 @@ fun AudioPlayerMessage(url: String) {
 }
 
 @Composable
-fun ChatInputBar(messageText: String, isRecording: Boolean, onMessageChange: (String) -> Unit, onSendMessage: () -> Unit, onAttachClick: () -> Unit, onCameraClick: () -> Unit, onLocationClick: () -> Unit, onVoiceStart: () -> Unit, onVoiceStop: () -> Unit) {
-    Surface(shadowElevation = 8.dp) {
-        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onAttachClick) { Icon(Icons.Default.Add, null) }
-            TextField(value = messageText, onValueChange = onMessageChange, placeholder = { Text("Mensagem") }, modifier = Modifier.weight(1f), shape = RoundedCornerShape(24.dp), colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent))
-            if (messageText.isBlank()) {
-                IconButton(onClick = onCameraClick) { Icon(Icons.Default.CameraAlt, null) }
-                IconButton(onClick = { if (isRecording) onVoiceStop() else onVoiceStart() }, colors = IconButtonDefaults.iconButtonColors(contentColor = if (isRecording) Color.Red else MaterialTheme.colorScheme.primary)) { Icon(if (isRecording) Icons.Default.Stop else Icons.Default.Mic, null) }
-            } else {
-                IconButton(onClick = onSendMessage) { Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary) }
+fun ChatInputBar(
+    messageText: String,
+    isRecording: Boolean,
+    isEditing: Boolean = false,
+    onMessageChange: (String) -> Unit,
+    onSendMessage: () -> Unit,
+    onCancelEdit: () -> Unit = {},
+    onAttachClick: () -> Unit,
+    onCameraClick: () -> Unit,
+    onLocationClick: () -> Unit,
+    onVoiceStart: () -> Unit,
+    onVoiceStop: () -> Unit,
+    onVoiceCancel: () -> Unit
+) {
+    Surface(shadowElevation = 8.dp, color = MaterialTheme.colorScheme.surface) {
+        Column {
+            if (isEditing) {
+                Row(
+                    Modifier.fillMaxWidth().background(Color.LightGray.copy(0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Edit, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                    Text("Editando mensagem", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f).padding(start = 8.dp))
+                    IconButton(onClick = onCancelEdit, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, null, Modifier.size(16.dp))
+                    }
+                }
+            }
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (isRecording) {
+                    Icon(Icons.Default.Mic, null, tint = Color.Red, modifier = Modifier.padding(horizontal = 8.dp))
+                    Text("Gravando...", modifier = Modifier.weight(1f), color = Color.Red)
+                    TextButton(onClick = onVoiceCancel) {
+                        Text("CANCELAR", color = Color.Gray)
+                    }
+                    IconButton(onClick = onVoiceStop) {
+                        Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary)
+                    }
+                } else {
+                    IconButton(onClick = onAttachClick) { Icon(Icons.Default.Add, null) }
+                    TextField(
+                        value = messageText,
+                        onValueChange = onMessageChange,
+                        placeholder = { Text("Mensagem") },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = TextFieldDefaults.colors(
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        )
+                    )
+                    if (messageText.isBlank()) {
+                        IconButton(onClick = onCameraClick) { Icon(Icons.Default.CameraAlt, null) }
+                        IconButton(onClick = onVoiceStart) { Icon(Icons.Default.Mic, null) }
+                    } else {
+                        IconButton(onClick = onSendMessage) {
+                            Icon(Icons.AutoMirrored.Filled.Send, null, tint = MaterialTheme.colorScheme.primary)
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-fun AttachmentMenu(onImageClick: () -> Unit, onVideoClick: () -> Unit, onFileClick: () -> Unit, onDismiss: () -> Unit) {
+fun AttachmentMenu(onImageClick: () -> Unit, onLocationClick: () -> Unit, onFileClick: () -> Unit, onDismiss: () -> Unit) {
     AlertDialog(onDismissRequest = onDismiss, confirmButton = {}, title = { Text("Anexar") }, text = {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) { IconButton(onClick = { onImageClick(); onDismiss() }) { Icon(Icons.Default.Image, null) }; Text("Galeria", style = MaterialTheme.typography.labelSmall) }
+            Column(horizontalAlignment = Alignment.CenterHorizontally) { IconButton(onClick = { onLocationClick(); onDismiss() }) { Icon(Icons.Default.LocationOn, null) }; Text("Localização", style = MaterialTheme.typography.labelSmall) }
             Column(horizontalAlignment = Alignment.CenterHorizontally) { IconButton(onClick = { onFileClick(); onDismiss() }) { Icon(Icons.Default.InsertDriveFile, null) }; Text("Documento", style = MaterialTheme.typography.labelSmall) }
         }
     })
@@ -388,7 +699,3 @@ fun PinnedMessageBar(message: Message, onUnpin: () -> Unit) {
     }
 }
 
-fun createTempImageUri(context: Context): Uri {
-    val file = File.createTempFile("IMG_", ".jpg", context.cacheDir)
-    return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-}

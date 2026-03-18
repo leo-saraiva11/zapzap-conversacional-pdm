@@ -12,7 +12,20 @@
           "package_name": "com.example.zapzap"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "574830179989-d268hlcofm9b4dmimf6q5rm65t5glan4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.zapzap",
+            "certificate_hash": "39577f3dd9c007ed05c42b5dd92f4912ac03ef18"
+          }
+        },
+        {
+          "client_id": "574830179989-jpgbni791qhm4mruaq1hejnbkhqldh1f.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyAAYl-uaHzIBcrzLX2jD-lymMhIVBiGE00"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "574830179989-jpgbni791qhm4mruaq1hejnbkhqldh1f.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

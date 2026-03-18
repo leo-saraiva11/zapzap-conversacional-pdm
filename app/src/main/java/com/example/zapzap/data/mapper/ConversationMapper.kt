@@ -3,6 +3,7 @@ package com.example.zapzap.data.mapper
 import com.example.zapzap.data.local.entity.ConversationEntity
 import com.example.zapzap.domain.model.Conversation
 import com.example.zapzap.domain.model.ConversationType
+import com.example.zapzap.domain.model.MessageStatus
 import org.json.JSONArray
 
 object ConversationMapper {
@@ -15,6 +16,7 @@ object ConversationMapper {
         lastMessage = entity.lastMessage,
         lastMessageTime = entity.lastMessageTime,
         lastMessageSenderId = entity.lastMessageSenderId,
+        lastMessageStatus = MessageStatus.fromString(entity.lastMessageStatus),
         unreadCount = entity.unreadCount,
         pinnedMessageId = entity.pinnedMessageId,
         createdAt = entity.createdAt,
@@ -30,6 +32,7 @@ object ConversationMapper {
         lastMessage = conversation.lastMessage,
         lastMessageTime = conversation.lastMessageTime,
         lastMessageSenderId = conversation.lastMessageSenderId,
+        lastMessageStatus = conversation.lastMessageStatus.name,
         unreadCount = conversation.unreadCount,
         pinnedMessageId = conversation.pinnedMessageId,
         createdAt = conversation.createdAt,
@@ -40,15 +43,23 @@ object ConversationMapper {
         val rawParticipants = map["participantIds"] as? List<*>
         val participants = rawParticipants?.mapNotNull { it?.toString() } ?: emptyList()
 
+        val lastMsg = map["lastMessage"] as? String ?: ""
+        val decryptedLastMsg = if (lastMsg.isNotEmpty() && lastMsg != "📷 Mídia" && !lastMsg.startsWith("📍") && !lastMsg.contains("http")) {
+            com.example.zapzap.util.EncryptionHelper.decrypt(lastMsg)
+        } else {
+            lastMsg
+        }
+
         return Conversation(
             id = conversationId,
             name = map["name"] as? String ?: "",
             type = ConversationType.fromString(map["type"] as? String ?: "INDIVIDUAL"),
             photoUrl = map["photoUrl"] as? String ?: "",
             participantIds = participants,
-            lastMessage = map["lastMessage"] as? String ?: "",
+            lastMessage = decryptedLastMsg,
             lastMessageTime = (map["lastMessageTime"] as? Number)?.toLong() ?: 0L,
             lastMessageSenderId = map["lastMessageSenderId"] as? String ?: "",
+            lastMessageStatus = MessageStatus.fromString(map["lastMessageStatus"] as? String ?: "SENT"),
             unreadCount = (map["unreadCount"] as? Number)?.toInt() ?: 0,
             pinnedMessageId = map["pinnedMessageId"] as? String ?: "",
             createdAt = (map["createdAt"] as? Number)?.toLong() ?: 0L,
@@ -64,6 +75,7 @@ object ConversationMapper {
         "lastMessage" to conversation.lastMessage,
         "lastMessageTime" to conversation.lastMessageTime,
         "lastMessageSenderId" to conversation.lastMessageSenderId,
+        "lastMessageStatus" to conversation.lastMessageStatus.name,
         "unreadCount" to conversation.unreadCount,
         "pinnedMessageId" to conversation.pinnedMessageId,
         "createdAt" to conversation.createdAt,

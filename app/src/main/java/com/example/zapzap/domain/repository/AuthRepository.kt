@@ -24,7 +24,7 @@ interface AuthRepository {
     suspend fun loginWithGoogle(idToken: String): Result<User>
 
     /** Login com telefone (enviar código) */
-    suspend fun sendPhoneVerification(phoneNumber: String): Result<String>
+    suspend fun sendPhoneVerification(phoneNumber: String, activity: android.app.Activity): Result<String>
 
     /** Verificar código do telefone */
     suspend fun verifyPhoneCode(verificationId: String, code: String): Result<User>

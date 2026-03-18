@@ -78,7 +78,19 @@ class ContactsViewModel @Inject constructor(
 
     fun importDeviceContacts() {
         viewModelScope.launch {
-            contactRepository.importDeviceContacts()
+            val result = contactRepository.importDeviceContacts()
+            val deviceContacts = result.getOrNull() ?: emptyList()
+            val currentUserId = authRepository.currentUserId ?: return@launch
+            
+            deviceContacts.forEach { deviceContact ->
+                val searchResult = contactRepository.findUserByEmailOrPhone(deviceContact.phone)
+                val registeredUser = searchResult.getOrNull()
+                
+                if (registeredUser != null) {
+                    // Update display name map to use the device's saved name
+                    contactRepository.addContact(currentUserId, registeredUser.copy(displayName = deviceContact.displayName))
+                }
+            }
         }
     }
 

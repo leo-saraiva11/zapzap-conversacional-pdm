@@ -12,13 +12,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.zapzap.domain.model.UserStatus
 import com.example.zapzap.ui.theme.StatusBusy
 import com.example.zapzap.ui.theme.StatusOffline
 import com.example.zapzap.ui.theme.StatusOnline
+import com.example.zapzap.ui.util.ImageUtils
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -33,10 +38,22 @@ fun ProfileScreen(
     var editAbout by remember(user) { mutableStateOf(user?.about ?: "") }
     var editStatus by remember(user) { mutableStateOf(user?.status ?: UserStatus.ONLINE) }
 
-    val photoLauncher = rememberLauncherForActivityResult(
+    val context = LocalContext.current
+    var showPhotoOptions by remember { mutableStateOf(false) }
+    var tempCameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
+
+    val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri ->
         uri?.let { viewModel.updateProfilePhoto(it) }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture()
+    ) { success ->
+        if (success) {
+            tempCameraUri?.let { viewModel.updateProfilePhoto(it) }
+        }
     }
 
     Scaffold(
@@ -82,28 +99,79 @@ fun ProfileScreen(
                 modifier = Modifier
                     .size(120.dp)
                     .clip(CircleShape)
-                    .clickable { if (isEditing) photoLauncher.launch("image/*") },
+                    .clickable {
+                        if (isEditing) {
+                            showPhotoOptions = true
+                        }
+                    },
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = user?.displayName?.firstOrNull()?.uppercase() ?: "?",
-                        style = MaterialTheme.typography.displayMedium
-                    )
+                    if (user?.photoUrl.isNullOrEmpty()) {
+                        Text(
+                            text = user?.displayName?.firstOrNull()?.uppercase() ?: "?",
+                            style = MaterialTheme.typography.displayMedium
+                        )
+                    } else {
+                        coil.compose.SubcomposeAsyncImage(
+                            model = user?.photoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            loading = { CircularProgressIndicator(modifier = Modifier.padding(32.dp)) },
+                            error = {
+                                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                                    Text(
+                                        text = user?.displayName?.firstOrNull()?.uppercase() ?: "?",
+                                        style = MaterialTheme.typography.displayMedium
+                                    )
+                                }
+                            }
+                        )
+                    }
                     if (isEditing) {
                         Surface(
                             modifier = Modifier.fillMaxSize(),
-                            color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.3f)
+                            color = Color.Black.copy(alpha = 0.3f)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.CameraAlt, contentDescription = "Mudar foto",
-                                    tint = MaterialTheme.colorScheme.onPrimary)
+                                    tint = Color.White)
                             }
                         }
                     }
                 }
             }
 
+            if (showPhotoOptions) {
+                AlertDialog(
+                    onDismissRequest = { showPhotoOptions = false },
+                    title = { Text("Mudar foto de perfil") },
+                    text = {
+                        Column {
+                            ListItem(
+                                headlineContent = { Text("Câmera") },
+                                leadingContent = { Icon(Icons.Default.CameraAlt, null) },
+                                modifier = Modifier.clickable {
+                                    val uri = ImageUtils.createTempImageUri(context)
+                                    tempCameraUri = uri
+                                    cameraLauncher.launch(uri)
+                                    showPhotoOptions = false
+                                }
+                            )
+                            ListItem(
+                                headlineContent = { Text("Galeria") },
+                                leadingContent = { Icon(Icons.Default.Image, null) },
+                                modifier = Modifier.clickable {
+                                    galleryLauncher.launch("image/*")
+                                    showPhotoOptions = false
+                                }
+                            )
+                        }
+                    },
+                    confirmButton = {}
+                )
+            }
             Spacer(modifier = Modifier.height(24.dp))
 
             // Nome

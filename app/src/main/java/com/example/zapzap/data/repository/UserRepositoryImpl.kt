@@ -76,16 +76,22 @@ class UserRepositoryImpl @Inject constructor(
             }
 
             val downloadUrl = bucket.publicUrl(fileName)
+            
+            // Força a URL a ser pública se o bucket for 'profile_photos' e estiver configurado assim no Supabase
+            // Alguns SDKs podem retornar a URL de API privada se não for especificado
+            val finalUrl = if (!downloadUrl.contains("/public/")) {
+                 downloadUrl.replace("/storage/v1/object/", "/storage/v1/object/public/")
+            } else downloadUrl
 
             firestore.collection("users").document(userId)
-                .update("photoUrl", downloadUrl)
+                .update("photoUrl", finalUrl)
                 .await()
 
             userDao.getUserByIdOnce(userId)?.let { entity ->
-                userDao.updateUser(entity.copy(photoUrl = downloadUrl))
+                userDao.updateUser(entity.copy(photoUrl = finalUrl))
             }
 
-            Result.success(downloadUrl)
+            Result.success(finalUrl)
         } catch (e: Exception) {
             Result.failure(e)
         }

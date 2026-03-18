@@ -55,4 +55,10 @@ interface MessageDao {
     /** Marca mensagem como sincronizada */
     @Query("UPDATE messages SET isSynced = 1 WHERE id = :messageId")
     suspend fun markAsSynced(messageId: String)
+
+    @Query("DELETE FROM messages WHERE id = :messageId")
+    suspend fun deleteMessageById(messageId: String)
+
+    @Query("UPDATE messages SET text = :text, isEdited = 1 WHERE id = :messageId")
+    suspend fun updateMessageText(messageId: String, text: String)
 }

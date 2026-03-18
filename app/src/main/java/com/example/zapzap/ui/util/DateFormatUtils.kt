@@ -8,9 +8,9 @@ import java.util.concurrent.TimeUnit
  * Utilitários de formatação de data/hora para o chat.
  */
 object DateFormatUtils {
-    private val timeFormat = SimpleDateFormat("HH:mm", Locale("pt", "BR"))
-    private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR"))
-    private val fullFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR"))
+    private val timeFormat = SimpleDateFormat("HH:mm", Locale("pt", "BR")).apply { timeZone = TimeZone.getTimeZone("America/Sao_Paulo") }
+    private val dateFormat = SimpleDateFormat("dd/MM/yyyy", Locale("pt", "BR")).apply { timeZone = TimeZone.getTimeZone("America/Sao_Paulo") }
+    private val fullFormat = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale("pt", "BR")).apply { timeZone = TimeZone.getTimeZone("America/Sao_Paulo") }
 
     /**
      * Formata timestamp para hora (HH:mm).

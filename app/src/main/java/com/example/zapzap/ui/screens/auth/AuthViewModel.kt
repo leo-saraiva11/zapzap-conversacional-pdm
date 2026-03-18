@@ -81,10 +81,10 @@ class AuthViewModel @Inject constructor(
         }
     }
 
-    fun sendPhoneVerification(phoneNumber: String) {
+    fun sendPhoneVerification(phoneNumber: String, activity: android.app.Activity) {
         viewModelScope.launch {
             _authState.value = AuthState.Loading
-            val result = authRepository.sendPhoneVerification(phoneNumber)
+            val result = authRepository.sendPhoneVerification(phoneNumber, activity)
             _authState.value = result.fold(
                 onSuccess = { AuthState.VerificationCodeSent(it) },
                 onFailure = { AuthState.Error(it.message ?: "Erro ao enviar SMS") }

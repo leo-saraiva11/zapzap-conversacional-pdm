@@ -12,6 +12,7 @@ data class Conversation(
     val lastMessage: String = "",
     val lastMessageTime: Long = 0L,
     val lastMessageSenderId: String = "",
+    val lastMessageStatus: MessageStatus = MessageStatus.SENT,
     val unreadCount: Int = 0,
     val pinnedMessageId: String = "",
     val createdAt: Long = System.currentTimeMillis(),

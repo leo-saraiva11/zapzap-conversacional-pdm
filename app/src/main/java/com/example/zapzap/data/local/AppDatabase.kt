@@ -22,7 +22,7 @@ import com.example.zapzap.data.local.entity.UserEntity
         ConversationEntity::class,
         ContactEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

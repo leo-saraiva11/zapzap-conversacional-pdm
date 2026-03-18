@@ -24,5 +24,6 @@ data class MessageEntity(
     val status: String = "SENDING",
     val isPinned: Boolean = false,
     val isEncrypted: Boolean = false,
+    val isEdited: Boolean = false,
     val isSynced: Boolean = false
 )

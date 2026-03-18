@@ -204,7 +204,7 @@ class AuthRepositoryImpl @Inject constructor(
             }
     }
 
-    override suspend fun sendPhoneVerification(phoneNumber: String): Result<String> = suspendCancellableCoroutine { continuation ->
+    override suspend fun sendPhoneVerification(phoneNumber: String, activity: android.app.Activity): Result<String> = suspendCancellableCoroutine { continuation ->
         val callbacks = object : com.google.firebase.auth.PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
             override fun onVerificationCompleted(credential: com.google.firebase.auth.PhoneAuthCredential) {
                 // Auto-sms verification can happen, but we'll handle it in verifyPhoneCode usually
@@ -223,7 +223,7 @@ class AuthRepositoryImpl @Inject constructor(
         val options = com.google.firebase.auth.PhoneAuthOptions.newBuilder(auth)
             .setPhoneNumber(phoneNumber)
             .setTimeout(60L, java.util.concurrent.TimeUnit.SECONDS)
-            .setActivity(context as android.app.Activity)
+            .setActivity(activity)
             .setCallbacks(callbacks)
             .build()
         com.google.firebase.auth.PhoneAuthProvider.verifyPhoneNumber(options)

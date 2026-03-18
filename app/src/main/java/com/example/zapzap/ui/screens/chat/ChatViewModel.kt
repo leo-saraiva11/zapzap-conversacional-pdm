@@ -50,10 +50,8 @@ class ChatViewModel @Inject constructor(
 
     val currentUserId: String? get() = authRepository.currentUserId
 
-    val messages: StateFlow<List<Message>> = _conversationId
-        .filter { it.isNotBlank() }
-        .flatMapLatest { chatRepository.getMessages(it) }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    private val _messages = MutableStateFlow<List<Message>>(emptyList())
+    val messages: StateFlow<List<Message>> = _messages.asStateFlow()
 
     val pinnedMessage: StateFlow<Message?> = _conversationId
         .filter { it.isNotBlank() }
@@ -61,13 +59,21 @@ class ChatViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     private val _groupMembers = MutableStateFlow<List<com.example.zapzap.domain.model.User>>(emptyList())
-    val groupMembers: StateFlow<List<com.example.zapzap.domain.model.User>> = _groupMembers.asStateFlow()
+    
+    val groupMembers: StateFlow<List<com.example.zapzap.domain.model.User>> = _conversationId
+        .filter { it.isNotBlank() }
+        .flatMapLatest { groupRepository.getGroupMembers(it) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun fetchGroupMembers() {
+    private val _currentConversation = MutableStateFlow<com.example.zapzap.domain.model.Conversation?>(null)
+    val currentConversation: StateFlow<com.example.zapzap.domain.model.Conversation?> = _currentConversation.asStateFlow()
+
+    fun fetchMessages(conversationId: String) {
+        _conversationId.value = conversationId
         viewModelScope.launch {
-            if (_conversationId.value.isNotBlank()) {
-                val members = groupRepository.getGroupMembers(_conversationId.value)
-                _groupMembers.value = members
+            val userId = authRepository.currentUserId ?: ""
+            chatRepository.getMessages(conversationId, userId).collect { msgs ->
+                _messages.value = msgs
             }
         }
     }
@@ -75,9 +81,28 @@ class ChatViewModel @Inject constructor(
     fun setConversationId(id: String) {
         _conversationId.value = id
         viewModelScope.launch {
+            val conv = chatRepository.getConversation(id).getOrNull()
+            _currentConversation.value = conv
             authRepository.currentUserId?.let { userId ->
                 chatRepository.markAllAsRead(id, userId)
             }
+        }
+    }
+
+    fun renameGroup(newName: String) {
+        viewModelScope.launch {
+            if (newName.isNotBlank()) {
+                groupRepository.editGroup(_conversationId.value, newName, "")
+                // Refresh local info
+                val updatedConv = chatRepository.getConversation(_conversationId.value).getOrNull()
+                _currentConversation.value = updatedConv
+            }
+        }
+    }
+
+    fun removeParticipant(participantId: String) {
+        viewModelScope.launch {
+            groupRepository.removeMember(_conversationId.value, participantId)
         }
     }
 
@@ -85,9 +110,9 @@ class ChatViewModel @Inject constructor(
         _messageText.value = text
     }
 
-    fun sendTextMessage() {
-        val text = _messageText.value.trim()
-        if (text.isBlank()) return
+    fun sendMessage(text: String) {
+        val trimmedText = text.trim()
+        if (trimmedText.isBlank()) return
 
         viewModelScope.launch {
             val userId = authRepository.currentUserId ?: return@launch
@@ -97,7 +122,7 @@ class ChatViewModel @Inject constructor(
                 conversationId = _conversationId.value,
                 senderId = userId,
                 senderName = user?.displayName ?: "",
-                text = text,
+                text = trimmedText,
                 type = MessageType.TEXT,
                 status = MessageStatus.SENDING
             )
@@ -150,10 +175,8 @@ class ChatViewModel @Inject constructor(
 
     fun stopRecording(context: Context) {
         try {
-            mediaRecorder?.apply {
-                stop()
-                release()
-            }
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
             mediaRecorder = null
             _isRecording.value = false
 
@@ -163,6 +186,23 @@ class ChatViewModel @Inject constructor(
             }
         } catch (e: Exception) {
             Log.e("ChatViewModel", "Erro ao parar gravação", e)
+            _isRecording.value = false
+            mediaRecorder = null
+        }
+    }
+
+    fun cancelRecording() {
+        try {
+            mediaRecorder?.stop()
+            mediaRecorder?.release()
+            mediaRecorder = null
+            _isRecording.value = false
+            audioFile?.delete()
+            audioFile = null
+        } catch (e: Exception) {
+            Log.e("ChatViewModel", "Erro ao cancelar gravação", e)
+            _isRecording.value = false
+            mediaRecorder = null
         }
     }
 
@@ -187,6 +227,18 @@ class ChatViewModel @Inject constructor(
     fun togglePinMessage(messageId: String, currentlyPinned: Boolean) {
         viewModelScope.launch {
             chatRepository.togglePinMessage(_conversationId.value, messageId, !currentlyPinned)
+        }
+    }
+
+    fun deleteMessage(messageId: String) {
+        viewModelScope.launch {
+            chatRepository.deleteMessage(_conversationId.value, messageId)
+        }
+    }
+
+    fun editMessage(messageId: String, newText: String) {
+        viewModelScope.launch {
+            chatRepository.editMessage(_conversationId.value, messageId, newText)
         }
     }
 

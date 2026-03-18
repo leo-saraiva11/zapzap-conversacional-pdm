@@ -21,7 +21,8 @@ object MessageMapper {
         timestamp = entity.timestamp,
         status = MessageStatus.fromString(entity.status),
         isPinned = entity.isPinned,
-        isEncrypted = entity.isEncrypted
+        isEncrypted = entity.isEncrypted,
+        isEdited = entity.isEdited
     )
 
     fun toEntity(message: Message, isSynced: Boolean = true): MessageEntity = MessageEntity(
@@ -39,6 +40,7 @@ object MessageMapper {
         status = message.status.name,
         isPinned = message.isPinned,
         isEncrypted = message.isEncrypted,
+        isEdited = message.isEdited,
         isSynced = isSynced
     )
 
@@ -64,7 +66,8 @@ object MessageMapper {
             timestamp = if (ts <= 0) System.currentTimeMillis() else ts,
             status = MessageStatus.fromString(map["status"] as? String ?: "SENT"),
             isPinned = map["isPinned"] as? Boolean ?: false,
-            isEncrypted = map["isEncrypted"] as? Boolean ?: false
+            isEncrypted = map["isEncrypted"] as? Boolean ?: false,
+            isEdited = map["isEdited"] as? Boolean ?: false
         )
     }
 
@@ -80,6 +83,7 @@ object MessageMapper {
         "timestamp" to (if (message.timestamp <= 0) System.currentTimeMillis() else message.timestamp),
         "status" to message.status.name,
         "isPinned" to message.isPinned,
-        "isEncrypted" to message.isEncrypted
+        "isEncrypted" to message.isEncrypted,
+        "isEdited" to message.isEdited
     )
 }

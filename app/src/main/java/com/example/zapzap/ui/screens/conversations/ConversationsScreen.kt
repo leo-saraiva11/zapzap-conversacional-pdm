@@ -233,16 +233,25 @@ private fun ConversationItem(
             // Avatar
             Surface(
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(56.dp)
                     .clip(CircleShape),
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        text = if (conversation.type == ConversationType.GROUP) "👥"
-                        else conversation.name.firstOrNull()?.uppercase() ?: "?",
-                        style = MaterialTheme.typography.titleLarge
-                    )
+                    if (conversation.photoUrl.isEmpty()) {
+                        Text(
+                            text = if (conversation.type == ConversationType.GROUP) "👥"
+                            else conversation.name.firstOrNull()?.uppercase() ?: "?",
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    } else {
+                        coil.compose.AsyncImage(
+                            model = conversation.photoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    }
                 }
             }
 
@@ -272,13 +281,18 @@ private fun ConversationItem(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(2.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // Status icon for own last message
+                    // We need a way to know if we are the sender of the last message
+                    // (lastMessageSenderId comparison)
+                    // But we don't have currentUserId here. 
+                    // Let's assume for now.
+                    
                     Text(
                         text = conversation.lastMessage.ifBlank { "Nenhuma mensagem" },
                         style = MaterialTheme.typography.bodyMedium,
@@ -289,14 +303,18 @@ private fun ConversationItem(
                     )
 
                     if (conversation.unreadCount > 0) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Badge(
-                            containerColor = MaterialTheme.colorScheme.primary
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
                         ) {
-                            Text(
-                                conversation.unreadCount.toString(),
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    conversation.unreadCount.toString(),
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                    style = MaterialTheme.typography.labelSmall
+                                )
+                            }
                         }
                     }
                 }

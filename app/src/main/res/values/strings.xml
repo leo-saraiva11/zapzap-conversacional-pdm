@@ -3,4 +3,6 @@
     <string name="app_name">ZapZap</string>
     <string name="default_notification_channel_id">zapzap_messages</string>
     <string name="firebase_project_id">zapzap-ea127</string>
+    <!-- Web Client ID do Firebase para Login com Google -->
+    <string name="default_web_client_id">574830179989-jpgbni791qhm4mruaq1hejnbkhqldh1f.apps.googleusercontent.com</string>
 </resources>

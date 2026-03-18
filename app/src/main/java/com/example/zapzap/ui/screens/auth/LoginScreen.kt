@@ -98,10 +98,10 @@ fun LoginScreen(
 
         TabRow(selectedTabIndex = if (isPhoneLogin) 1 else 0, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
             Tab(selected = !isPhoneLogin, onClick = { isPhoneLogin = false; viewModel.clearError() }) {
-                paddingValues -> Text("Email", modifier = Modifier.padding(16.dp))
+                Text("Email", modifier = Modifier.padding(16.dp))
             }
             Tab(selected = isPhoneLogin, onClick = { isPhoneLogin = true; viewModel.clearError() }) {
-                paddingValues -> Text("Telefone", modifier = Modifier.padding(16.dp))
+                Text("Telefone", modifier = Modifier.padding(16.dp))
             }
         }
 
@@ -181,8 +181,22 @@ fun LoginScreen(
 
                 Spacer(modifier = Modifier.height(24.dp))
 
+                val context = LocalContext.current
+                val activity = remember(context) {
+                    var c = context
+                    while (c is android.content.ContextWrapper) {
+                        if (c is android.app.Activity) break
+                        c = c.baseContext
+                    }
+                    c as? android.app.Activity
+                }
+
                 Button(
-                    onClick = { viewModel.sendPhoneVerification(phoneNumber) },
+                    onClick = {
+                        if (activity != null) {
+                            viewModel.sendPhoneVerification(phoneNumber, activity)
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     enabled = phoneNumber.length >= 10 && authState !is AuthState.Loading
                 ) {
@@ -195,7 +209,7 @@ fun LoginScreen(
             } else {
                 Text("Enviamos um código para $phoneNumber", style = MaterialTheme.typography.bodySmall)
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 OutlinedTextField(
                     value = verificationCode,
                     onValueChange = { verificationCode = it },
@@ -247,7 +261,7 @@ fun LoginScreen(
         // Login com Google
         val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
-        
+
         OutlinedButton(
             onClick = {
                 coroutineScope.launch {
@@ -258,20 +272,20 @@ fun LoginScreen(
                             .setServerClientId(context.getString(com.example.zapzap.R.string.default_web_client_id))
                             .setAutoSelectEnabled(true)
                             .build()
-                            
+
                         val request = androidx.credentials.GetCredentialRequest.Builder()
                             .addCredentialOption(googleIdOption)
                             .build()
-                            
+
                         val result = credentialManager.getCredential(
                             request = request,
                             context = context
                         )
-                        
+
                         val credential = result.credential
                         if (credential is androidx.credentials.CustomCredential &&
                             credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                                
+
                             val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
                             viewModel.loginWithGoogle(googleIdTokenCredential.idToken)
                         }

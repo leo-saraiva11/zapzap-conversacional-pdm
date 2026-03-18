@@ -17,7 +17,8 @@ data class Message(
     val timestamp: Long = System.currentTimeMillis(),
     val status: MessageStatus = MessageStatus.SENDING,
     val isPinned: Boolean = false,
-    val isEncrypted: Boolean = false
+    val isEncrypted: Boolean = false,
+    val isEdited: Boolean = false
 )
 
 /**

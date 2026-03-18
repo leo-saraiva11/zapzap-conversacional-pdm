@@ -13,7 +13,7 @@ interface ChatRepository {
     fun getConversations(userId: String): Flow<List<Conversation>>
 
     /** Observa as mensagens de uma conversa em tempo real */
-    fun getMessages(conversationId: String): Flow<List<Message>>
+    fun getMessages(conversationId: String, userId: String): Flow<List<Message>>
 
     /** Busca uma conversa por ID */
     suspend fun getConversation(conversationId: String): Result<Conversation>
@@ -39,6 +39,12 @@ interface ChatRepository {
 
     /** Busca mensagens por palavra-chave */
     fun searchMessages(conversationId: String, query: String): Flow<List<Message>>
+
+    /** Deleta uma mensagem */
+    suspend fun deleteMessage(conversationId: String, messageId: String): Result<Unit>
+
+    /** Edita o texto de uma mensagem */
+    suspend fun editMessage(conversationId: String, messageId: String, newText: String): Result<Unit>
 
     /** Obtém a mensagem fixada de uma conversa */
     fun getPinnedMessage(conversationId: String): Flow<Message?>
