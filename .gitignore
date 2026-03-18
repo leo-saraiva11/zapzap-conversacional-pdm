@@ -11,3 +11,5 @@ local.properties
 # google-services.json (Removido para permitir commit conforme solicitado para trabalho acadêmico)
 *.apk
 *.aab
+# Credenciais do Firebase - NUNCA comitar em repo público!
+app/src/main/res/raw/service_account.json
