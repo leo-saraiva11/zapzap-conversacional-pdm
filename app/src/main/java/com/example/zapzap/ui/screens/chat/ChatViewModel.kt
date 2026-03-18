@@ -14,6 +14,7 @@ import com.example.zapzap.domain.repository.AuthRepository
 import com.example.zapzap.domain.repository.ChatRepository
 import com.example.zapzap.domain.repository.MediaRepository
 import com.example.zapzap.domain.repository.UserRepository
+import com.example.zapzap.domain.repository.GroupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -25,7 +26,8 @@ class ChatViewModel @Inject constructor(
     private val chatRepository: ChatRepository,
     private val authRepository: AuthRepository,
     private val mediaRepository: MediaRepository,
-    private val userRepository: UserRepository
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository
 ) : ViewModel() {
 
     private val _conversationId = MutableStateFlow("")
@@ -57,6 +59,18 @@ class ChatViewModel @Inject constructor(
         .filter { it.isNotBlank() }
         .flatMapLatest { chatRepository.getPinnedMessage(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    private val _groupMembers = MutableStateFlow<List<com.example.zapzap.domain.model.User>>(emptyList())
+    val groupMembers: StateFlow<List<com.example.zapzap.domain.model.User>> = _groupMembers.asStateFlow()
+
+    fun fetchGroupMembers() {
+        viewModelScope.launch {
+            if (_conversationId.value.isNotBlank()) {
+                val members = groupRepository.getGroupMembers(_conversationId.value)
+                _groupMembers.value = members
+            }
+        }
+    }
 
     fun setConversationId(id: String) {
         _conversationId.value = id

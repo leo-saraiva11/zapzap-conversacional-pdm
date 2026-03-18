@@ -43,21 +43,27 @@ class ChatRepositoryImpl @Inject constructor(
                     val deferredConversations = snapshot?.documents?.mapNotNull { doc ->
                         val base = ConversationMapper.fromFirestore(doc.data ?: emptyMap(), doc.id)
                         
-                        // Identificação: Quem é o outro participante?
+                        if (base.type == ConversationType.GROUP) {
+                            // Grupos usam o nome e foto do próprio documento
+                            return@mapNotNull async { base }
+                        }
+                        
+                        // Conversas individuais: Identificar o outro participante
                         val otherId = base.participantIds.find { it != userId } ?: userId
                         
-                        // FIX: Ocultar conversas individuais corrompidas do banco (erro anterior de participantIds)
-                        if (base.type == ConversationType.INDIVIDUAL && otherId == userId) {
-                            return@mapNotNull null
+                        if (otherId == userId) {
+                            return@mapNotNull null // Ignorar conversas corrompidas consigo mesmo
                         }
                         
                         async {
                             try {
                                 val uDoc = firestore.collection("users").document(otherId).get().await()
                                 val name = uDoc.getString("displayName") ?: uDoc.getString("email") ?: "Usuário"
+                                val photoUrl = uDoc.getString("photoUrl") ?: ""
+                                
                                 base.copy(
                                     name = name,
-                                    photoUrl = uDoc.getString("photoUrl") ?: ""
+                                    photoUrl = photoUrl
                                 )
                             } catch (_: Exception) {
                                 base.copy(name = "Usuário")
@@ -67,6 +73,8 @@ class ChatRepositoryImpl @Inject constructor(
 
                     val conversations = deferredConversations.awaitAll()
                     trySend(conversations)
+                    
+                    // Cache local para offline e inicialização rápida
                     conversationDao.insertConversations(conversations.map { ConversationMapper.toEntity(it) })
                 }
             }
@@ -74,6 +82,9 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override fun getMessages(conversationId: String): Flow<List<Message>> = callbackFlow {
+        // Observa mudanças locais também! (Optimistic UI e Offline Cache)
+        val roomFlow = messageDao.getMessagesByConversation(conversationId)
+        
         val listener = firestore.collection("conversations")
             .document(conversationId)
             .collection("messages")
@@ -81,14 +92,32 @@ class ChatRepositoryImpl @Inject constructor(
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener
                 val msgs = snapshot?.documents?.mapNotNull { doc ->
-                    try { MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) } catch (_: Exception) { null }
+                    try { 
+                        val m = MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) 
+                        if (m.type == MessageType.TEXT && m.isEncrypted) {
+                            m.copy(text = com.example.zapzap.util.EncryptionHelper.decrypt(m.text))
+                        } else {
+                            m
+                        }
+                    } catch (_: Exception) { null }
                 } ?: emptyList()
-                trySend(msgs)
+                
                 launch { 
                     messageDao.insertMessages(msgs.map { MessageMapper.toEntity(it, true) })
                 }
             }
-        awaitClose { listener.remove() }
+            
+        // Emite o fluxo do Room que vai ser atualizado pelo Firestore listener e pelas mensagens locais enviadas    
+        val job = launch {
+            roomFlow.collect { entities ->
+                trySend(entities.map { MessageMapper.fromEntity(it) })
+            }
+        }
+        
+        awaitClose { 
+            listener.remove() 
+            job.cancel()
+        }
     }
 
     override suspend fun getOrCreateConversation(currentUserId: String, otherUserId: String): Result<Conversation> {
@@ -115,29 +144,50 @@ class ChatRepositoryImpl @Inject constructor(
                 createdAt = System.currentTimeMillis()
             )
             
+            // Buscar nome e foto para a UI imediatamente
+            var displayName = "Usuário"
+            var photoUrl = ""
+            try {
+                val uDoc = firestore.collection("users").document(otherUserId).get().await()
+                displayName = uDoc.getString("displayName") ?: uDoc.getString("email") ?: "Usuário"
+                photoUrl = uDoc.getString("photoUrl") ?: ""
+            } catch (_: Exception) {}
+            
+            val convForUi = conv.copy(name = displayName, photoUrl = photoUrl)
+            
             firestore.collection("conversations").document(id).set(ConversationMapper.toFirestore(conv)).await()
-            Result.success(conv)
+            conversationDao.insertConversations(listOf(ConversationMapper.toEntity(convForUi)))
+            Result.success(convForUi)
         } catch (e: Exception) { Result.failure(e) }
     }
 
     override suspend fun sendMessage(message: Message): Result<Message> {
+        val id = UUID.randomUUID().toString()
+        val ts = System.currentTimeMillis()
+        val finalMsg = message.copy(id = id, timestamp = ts, status = MessageStatus.SENDING)
+        
         return try {
-            val id = UUID.randomUUID().toString()
-            val ts = System.currentTimeMillis()
-            val finalMsg = message.copy(id = id, timestamp = ts, status = MessageStatus.SENT)
-            
+            // Optimistic UI: Salva localmente em PLAIN TEXT primeiro para exibir na hora
+            messageDao.insertMessage(MessageMapper.toEntity(finalMsg).copy(isSynced = false))
+
             val batch = firestore.batch()
             val msgRef = firestore.collection("conversations").document(finalMsg.conversationId).collection("messages").document(id)
             val convRef = firestore.collection("conversations").document(finalMsg.conversationId)
             
-            batch.set(msgRef, MessageMapper.toFirestore(finalMsg))
+            // Assume "SENT" ao conseguir chegar no Firestore. Encrypta APENAS o texto que vai para a nuvem
+            val textToSend = if (finalMsg.type == MessageType.TEXT) com.example.zapzap.util.EncryptionHelper.encrypt(finalMsg.text) else finalMsg.text
+            val sentMsg = finalMsg.copy(status = MessageStatus.SENT, text = textToSend, isEncrypted = finalMsg.type == MessageType.TEXT)
+            
+            batch.set(msgRef, MessageMapper.toFirestore(sentMsg))
             batch.update(convRef, mapOf(
-                "lastMessage" to finalMsg.text.ifBlank { "Mídia" },
+                "lastMessage" to if (finalMsg.type == MessageType.TEXT) "Mensagem Criptografada" else "Mídia",
                 "lastMessageTime" to ts,
-                "lastMessageSenderId" to finalMsg.senderId
+                "lastMessageSenderId" to sentMsg.senderId
             ))
             
             batch.commit().await()
+            messageDao.updateMessageStatus(id, MessageStatus.SENT.name)
+            messageDao.markAsSynced(id)
             
             // Tenta enviar notificação push via FCM Http v1
             try {
@@ -160,8 +210,11 @@ class ChatRepositoryImpl @Inject constructor(
                 Log.e("ChatRepository", "Erro ao tentar enviar notificação push: ${e.message}", e)
             }
             
-            Result.success(finalMsg)
-        } catch (e: Exception) { Result.failure(e) }
+            Result.success(sentMsg)
+        } catch (e: Exception) { 
+            // Falhou ao enviar (ex: sem net), o listener offline worker vai pegar depois 
+            Result.failure(e) 
+        }
     }
 
     override suspend fun getConversation(conversationId: String): Result<Conversation> {

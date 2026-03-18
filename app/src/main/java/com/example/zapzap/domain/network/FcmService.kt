@@ -13,5 +13,5 @@ interface FcmService {
         title: String,
         body: String,
         conversationId: String
-    ): Result<Unit>
+    )
 }

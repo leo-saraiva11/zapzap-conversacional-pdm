@@ -89,11 +89,14 @@ dependencies {
     implementation(libs.google.auth.library.oauth2.http)
     implementation(libs.okhttp)
 
-    // Google Play Services
+    // Google Play Services & Credentials
     implementation(libs.play.services.auth)
     implementation(libs.play.services.maps)
     implementation(libs.play.services.location)
     implementation(libs.maps.compose)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
 
     // Supabase
     implementation(platform(libs.supabase.bom))
