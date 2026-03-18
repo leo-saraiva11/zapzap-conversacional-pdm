@@ -1,6 +1,8 @@
 package com.example.zapzap.di
 
 import com.example.zapzap.data.repository.*
+import com.example.zapzap.domain.network.FcmService
+import com.example.zapzap.data.network.FcmServiceImpl
 import com.example.zapzap.domain.repository.*
 import dagger.Binds
 import dagger.Module
@@ -38,4 +40,8 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFcmService(impl: FcmServiceImpl): FcmService
 }
