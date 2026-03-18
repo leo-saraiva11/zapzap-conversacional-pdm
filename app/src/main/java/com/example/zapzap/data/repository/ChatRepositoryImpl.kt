@@ -82,6 +82,9 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override fun getMessages(conversationId: String): Flow<List<Message>> = callbackFlow {
+        // Observa mudanças locais também! (Optimistic UI e Offline Cache)
+        val roomFlow = messageDao.getMessagesByConversation(conversationId)
+        
         val listener = firestore.collection("conversations")
             .document(conversationId)
             .collection("messages")
@@ -91,12 +94,23 @@ class ChatRepositoryImpl @Inject constructor(
                 val msgs = snapshot?.documents?.mapNotNull { doc ->
                     try { MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) } catch (_: Exception) { null }
                 } ?: emptyList()
-                trySend(msgs)
+                
                 launch { 
                     messageDao.insertMessages(msgs.map { MessageMapper.toEntity(it, true) })
                 }
             }
-        awaitClose { listener.remove() }
+            
+        // Emite o fluxo do Room que vai ser atualizado pelo Firestore listener e pelas mensagens locais enviadas    
+        val job = launch {
+            roomFlow.collect { entities ->
+                trySend(entities.map { MessageMapper.fromEntity(it) })
+            }
+        }
+        
+        awaitClose { 
+            listener.remove() 
+            job.cancel()
+        }
     }
 
     override suspend fun getOrCreateConversation(currentUserId: String, otherUserId: String): Result<Conversation> {
@@ -141,23 +155,30 @@ class ChatRepositoryImpl @Inject constructor(
     }
 
     override suspend fun sendMessage(message: Message): Result<Message> {
+        val id = UUID.randomUUID().toString()
+        val ts = System.currentTimeMillis()
+        val finalMsg = message.copy(id = id, timestamp = ts, status = MessageStatus.SENDING)
+        
         return try {
-            val id = UUID.randomUUID().toString()
-            val ts = System.currentTimeMillis()
-            val finalMsg = message.copy(id = id, timestamp = ts, status = MessageStatus.SENT)
-            
+            // Optimistic UI: Salva localmente primeiro para exibir na hora
+            messageDao.insertMessage(MessageMapper.toEntity(finalMsg).copy(isSynced = false))
+
             val batch = firestore.batch()
             val msgRef = firestore.collection("conversations").document(finalMsg.conversationId).collection("messages").document(id)
             val convRef = firestore.collection("conversations").document(finalMsg.conversationId)
             
-            batch.set(msgRef, MessageMapper.toFirestore(finalMsg))
+            // Assume "SENT" ao conseguir chegar no Firestore
+            val sentMsg = finalMsg.copy(status = MessageStatus.SENT)
+            batch.set(msgRef, MessageMapper.toFirestore(sentMsg))
             batch.update(convRef, mapOf(
-                "lastMessage" to finalMsg.text.ifBlank { "Mídia" },
+                "lastMessage" to sentMsg.text.ifBlank { "Mídia" },
                 "lastMessageTime" to ts,
-                "lastMessageSenderId" to finalMsg.senderId
+                "lastMessageSenderId" to sentMsg.senderId
             ))
             
             batch.commit().await()
+            messageDao.updateMessageStatus(id, MessageStatus.SENT.name)
+            messageDao.markAsSynced(id)
             
             // Tenta enviar notificação push via FCM Http v1
             try {
@@ -180,8 +201,11 @@ class ChatRepositoryImpl @Inject constructor(
                 Log.e("ChatRepository", "Erro ao tentar enviar notificação push: ${e.message}", e)
             }
             
-            Result.success(finalMsg)
-        } catch (e: Exception) { Result.failure(e) }
+            Result.success(sentMsg)
+        } catch (e: Exception) { 
+            // Falhou ao enviar (ex: sem net), o listener offline worker vai pegar depois 
+            Result.failure(e) 
+        }
     }
 
     override suspend fun getConversation(conversationId: String): Result<Conversation> {

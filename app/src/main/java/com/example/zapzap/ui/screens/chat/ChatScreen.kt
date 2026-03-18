@@ -305,11 +305,13 @@ fun MessageBubble(
                             MessageStatus.DELIVERED -> Icons.Default.DoneAll
                             MessageStatus.READ -> Icons.Default.DoneAll
                         }
+                        // Azul se foi lida. Cinza escuro se foi apenas entregue.
                         val statusColor = when (message.status) {
-                            MessageStatus.READ -> Color.Cyan
+                            MessageStatus.READ -> Color(0xFF34B7F1) // Azul tipo WhatsApp
+                            MessageStatus.DELIVERED -> Color.DarkGray
                             else -> Color.Gray
                         }
-                        Icon(statusIcon, null, Modifier.size(14.dp), tint = statusColor) 
+                        Icon(statusIcon, null, Modifier.size(16.dp), tint = statusColor) 
                     }
                 }
             }
