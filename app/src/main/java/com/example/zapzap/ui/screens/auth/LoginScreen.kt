@@ -20,6 +20,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 import com.example.zapzap.ui.theme.PrimaryLight
 
 /**
@@ -159,9 +161,42 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(16.dp))
 
         // Login com Google
+        val context = LocalContext.current
+        val coroutineScope = rememberCoroutineScope()
+        
         OutlinedButton(
             onClick = {
-                // TODO: Implementar Google Sign-In com ActivityResultLauncher
+                coroutineScope.launch {
+                    try {
+                        val credentialManager = androidx.credentials.CredentialManager.create(context)
+                        val googleIdOption = com.google.android.libraries.identity.googleid.GetGoogleIdOption.Builder()
+                            .setFilterByAuthorizedAccounts(false)
+                            .setServerClientId(context.getString(com.example.zapzap.R.string.default_web_client_id))
+                            .setAutoSelectEnabled(true)
+                            .build()
+                            
+                        val request = androidx.credentials.GetCredentialRequest.Builder()
+                            .addCredentialOption(googleIdOption)
+                            .build()
+                            
+                        val result = credentialManager.getCredential(
+                            request = request,
+                            context = context
+                        )
+                        
+                        val credential = result.credential
+                        if (credential is androidx.credentials.CustomCredential &&
+                            credential.type == com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+                                
+                            val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
+                            viewModel.loginWithGoogle(googleIdTokenCredential.idToken)
+                        } else {
+                            // Ignora ou trata erro genérico
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
             },
             modifier = Modifier
                 .fillMaxWidth()

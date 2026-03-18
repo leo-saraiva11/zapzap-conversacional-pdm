@@ -157,7 +157,45 @@ class AuthRepositoryImpl @Inject constructor(
         } catch (e: Exception) { Log.e(TAG, "Erro status: ${e.message}") }
     }
 
-    override suspend fun loginWithGoogle(idToken: String): Result<User> = Result.failure(Exception("Pendente"))
+    override suspend fun loginWithGoogle(idToken: String): Result<User> = suspendCancellableCoroutine { continuation ->
+        val credential = com.google.firebase.auth.GoogleAuthProvider.getCredential(idToken, null)
+        auth.signInWithCredential(credential)
+            .addOnSuccessListener { result ->
+                val firebaseUser = result.user
+                if (firebaseUser != null) {
+                    val user = User(
+                        uid = firebaseUser.uid,
+                        displayName = firebaseUser.displayName ?: "",
+                        email = firebaseUser.email ?: "",
+                        photoUrl = firebaseUser.photoUrl?.toString() ?: "",
+                        status = UserStatus.ONLINE
+                    )
+                    
+                    repositoryScope.launch {
+                        try {
+                            // Atualizar Firestore no primeiro login
+                            val doc = firestore.collection("users").document(firebaseUser.uid).get().await()
+                            if (!doc.exists()) {
+                                saveUserToFirestore(user)
+                                userDao.insertUser(UserMapper.toEntity(user))
+                            } else {
+                                updateUserStatus(firebaseUser.uid, UserStatus.ONLINE)
+                            }
+                            updateDeviceFcmToken(firebaseUser.uid)
+                        } catch (e: Exception) { Log.e(TAG, "Erro background Google Auth: ${e.message}") }
+                    }
+                    
+                    if (continuation.isActive) continuation.resume(Result.success(user))
+                } else {
+                    if (continuation.isActive) continuation.resume(Result.failure(Exception("Usuário nulo após Google Sign-In")))
+                }
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Falha Google Sign-In: ${exception.message}")
+                if (continuation.isActive) continuation.resume(Result.failure(exception))
+            }
+    }
+
     override suspend fun sendPhoneVerification(phoneNumber: String): Result<String> = Result.failure(Exception("Pendente"))
     override suspend fun verifyPhoneCode(verificationId: String, code: String): Result<User> = Result.failure(Exception("Pendente"))
     override suspend fun resetPassword(email: String): Result<Unit> = Result.success(Unit)

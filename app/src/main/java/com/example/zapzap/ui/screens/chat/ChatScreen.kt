@@ -130,6 +130,59 @@ fun ChatScreen(
         }
     }
 
+    val groupMembers by viewModel.groupMembers.collectAsState()
+    var showGroupInfo by remember { mutableStateOf(false) }
+
+    // Dialog: Info do Grupo
+    if (showGroupInfo) {
+        Dialog(onDismissRequest = { showGroupInfo = false }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text("Participantes do Grupo", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (groupMembers.isEmpty()) {
+                        Text("Carregando...", modifier = Modifier.padding(8.dp))
+                    } else {
+                        LazyColumn {
+                            items(groupMembers) { member ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (member.photoUrl.isNotEmpty()) {
+                                        AsyncImage(
+                                            model = member.photoUrl,
+                                            contentDescription = null,
+                                            contentScale = ContentScale.Crop,
+                                            modifier = Modifier.size(40.dp).clip(CircleShape).background(Color.LightGray)
+                                        )
+                                    } else {
+                                        Box(
+                                            modifier = Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(member.displayName.take(1).uppercase(), color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Text(member.displayName, style = MaterialTheme.typography.bodyLarge)
+                                }
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = { showGroupInfo = false }, modifier = Modifier.align(Alignment.End)) {
+                        Text("Fechar")
+                    }
+                }
+            }
+        }
+    }
+
     Scaffold(
         topBar = {
             if (isSearching) {
@@ -159,6 +212,12 @@ fun ChatScreen(
                     actions = {
                         IconButton(onClick = { viewModel.toggleSearch() }) {
                             Icon(Icons.Default.Search, contentDescription = null, tint = Color.White)
+                        }
+                        IconButton(onClick = { 
+                            showGroupInfo = true 
+                            viewModel.fetchGroupMembers()
+                        }) {
+                            Icon(Icons.Default.Group, contentDescription = "Ver Grupo", tint = Color.White)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)

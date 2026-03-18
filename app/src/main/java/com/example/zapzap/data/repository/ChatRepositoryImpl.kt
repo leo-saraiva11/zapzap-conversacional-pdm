@@ -43,21 +43,27 @@ class ChatRepositoryImpl @Inject constructor(
                     val deferredConversations = snapshot?.documents?.mapNotNull { doc ->
                         val base = ConversationMapper.fromFirestore(doc.data ?: emptyMap(), doc.id)
                         
-                        // Identificação: Quem é o outro participante?
+                        if (base.type == ConversationType.GROUP) {
+                            // Grupos usam o nome e foto do próprio documento
+                            return@mapNotNull async { base }
+                        }
+                        
+                        // Conversas individuais: Identificar o outro participante
                         val otherId = base.participantIds.find { it != userId } ?: userId
                         
-                        // FIX: Ocultar conversas individuais corrompidas do banco (erro anterior de participantIds)
-                        if (base.type == ConversationType.INDIVIDUAL && otherId == userId) {
-                            return@mapNotNull null
+                        if (otherId == userId) {
+                            return@mapNotNull null // Ignorar conversas corrompidas consigo mesmo
                         }
                         
                         async {
                             try {
                                 val uDoc = firestore.collection("users").document(otherId).get().await()
                                 val name = uDoc.getString("displayName") ?: uDoc.getString("email") ?: "Usuário"
+                                val photoUrl = uDoc.getString("photoUrl") ?: ""
+                                
                                 base.copy(
                                     name = name,
-                                    photoUrl = uDoc.getString("photoUrl") ?: ""
+                                    photoUrl = photoUrl
                                 )
                             } catch (_: Exception) {
                                 base.copy(name = "Usuário")
@@ -67,6 +73,8 @@ class ChatRepositoryImpl @Inject constructor(
 
                     val conversations = deferredConversations.awaitAll()
                     trySend(conversations)
+                    
+                    // Cache local para offline e inicialização rápida
                     conversationDao.insertConversations(conversations.map { ConversationMapper.toEntity(it) })
                 }
             }
@@ -115,8 +123,20 @@ class ChatRepositoryImpl @Inject constructor(
                 createdAt = System.currentTimeMillis()
             )
             
+            // Buscar nome e foto para a UI imediatamente
+            var displayName = "Usuário"
+            var photoUrl = ""
+            try {
+                val uDoc = firestore.collection("users").document(otherUserId).get().await()
+                displayName = uDoc.getString("displayName") ?: uDoc.getString("email") ?: "Usuário"
+                photoUrl = uDoc.getString("photoUrl") ?: ""
+            } catch (_: Exception) {}
+            
+            val convForUi = conv.copy(name = displayName, photoUrl = photoUrl)
+            
             firestore.collection("conversations").document(id).set(ConversationMapper.toFirestore(conv)).await()
-            Result.success(conv)
+            conversationDao.insertConversations(listOf(ConversationMapper.toEntity(convForUi)))
+            Result.success(convForUi)
         } catch (e: Exception) { Result.failure(e) }
     }
 

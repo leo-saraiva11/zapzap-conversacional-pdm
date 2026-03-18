@@ -80,7 +80,9 @@ fun ZapZapNavGraph() {
                 onLogout = {
                     authViewModel.logout()
                     navController.navigate(Screen.Login.route) {
-                        popUpTo(0) { inclusive = true }
+                        popUpTo(navController.graph.id) {
+                            inclusive = true
+                        }
                     }
                 }
             )
