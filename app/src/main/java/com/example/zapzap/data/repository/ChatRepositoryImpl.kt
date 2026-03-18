@@ -92,7 +92,14 @@ class ChatRepositoryImpl @Inject constructor(
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener
                 val msgs = snapshot?.documents?.mapNotNull { doc ->
-                    try { MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) } catch (_: Exception) { null }
+                    try { 
+                        val m = MessageMapper.fromFirestore(doc.data ?: emptyMap(), doc.id) 
+                        if (m.type == MessageType.TEXT && m.isEncrypted) {
+                            m.copy(text = com.example.zapzap.util.EncryptionHelper.decrypt(m.text))
+                        } else {
+                            m
+                        }
+                    } catch (_: Exception) { null }
                 } ?: emptyList()
                 
                 launch { 
@@ -160,18 +167,20 @@ class ChatRepositoryImpl @Inject constructor(
         val finalMsg = message.copy(id = id, timestamp = ts, status = MessageStatus.SENDING)
         
         return try {
-            // Optimistic UI: Salva localmente primeiro para exibir na hora
+            // Optimistic UI: Salva localmente em PLAIN TEXT primeiro para exibir na hora
             messageDao.insertMessage(MessageMapper.toEntity(finalMsg).copy(isSynced = false))
 
             val batch = firestore.batch()
             val msgRef = firestore.collection("conversations").document(finalMsg.conversationId).collection("messages").document(id)
             val convRef = firestore.collection("conversations").document(finalMsg.conversationId)
             
-            // Assume "SENT" ao conseguir chegar no Firestore
-            val sentMsg = finalMsg.copy(status = MessageStatus.SENT)
+            // Assume "SENT" ao conseguir chegar no Firestore. Encrypta APENAS o texto que vai para a nuvem
+            val textToSend = if (finalMsg.type == MessageType.TEXT) com.example.zapzap.util.EncryptionHelper.encrypt(finalMsg.text) else finalMsg.text
+            val sentMsg = finalMsg.copy(status = MessageStatus.SENT, text = textToSend, isEncrypted = finalMsg.type == MessageType.TEXT)
+            
             batch.set(msgRef, MessageMapper.toFirestore(sentMsg))
             batch.update(convRef, mapOf(
-                "lastMessage" to sentMsg.text.ifBlank { "Mídia" },
+                "lastMessage" to if (finalMsg.type == MessageType.TEXT) "Mensagem Criptografada" else "Mídia",
                 "lastMessageTime" to ts,
                 "lastMessageSenderId" to sentMsg.senderId
             ))

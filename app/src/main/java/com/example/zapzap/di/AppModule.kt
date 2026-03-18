@@ -8,6 +8,11 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
 
+import com.example.zapzap.data.remote.FcmServiceImpl
+import com.example.zapzap.domain.network.FcmService
+import dagger.Provides
+import okhttp3.OkHttpClient
+
 /**
  * Módulo Hilt para vincular implementações de repositórios às suas interfaces.
  */
@@ -38,4 +43,18 @@ abstract class AppModule {
     @Binds
     @Singleton
     abstract fun bindUserRepository(impl: UserRepositoryImpl): UserRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFcmService(impl: FcmServiceImpl): FcmService
+}
+
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder().build()
+    }
 }

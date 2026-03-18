@@ -32,6 +32,16 @@ fun ContactsScreen(
     var showAddDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
+    val contactPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            viewModel.importDeviceContacts()
+        } else {
+            // Pode exibir um snackbar explicando que a permissão foi negada
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -43,7 +53,9 @@ fun ContactsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.importDeviceContacts() }) {
+                    IconButton(onClick = { 
+                        contactPermissionLauncher.launch(android.Manifest.permission.READ_CONTACTS)
+                    }) {
                         Icon(Icons.Default.ContactPhone, contentDescription = "Importar contatos",
                             tint = MaterialTheme.colorScheme.onPrimary)
                     }
