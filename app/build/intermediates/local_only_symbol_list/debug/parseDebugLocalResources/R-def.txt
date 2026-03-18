@@ -1,7 +1,9 @@
 R_DEF: Internal format may change without notice
 local
+raw service_account
 string app_name
 string default_notification_channel_id
+string default_web_client_id
 string firebase_project_id
 string gcm_defaultSenderId
 string google_api_key

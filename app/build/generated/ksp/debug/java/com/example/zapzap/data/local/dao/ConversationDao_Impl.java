@@ -52,7 +52,7 @@ public final class ConversationDao_Impl implements ConversationDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `conversations` (`id`,`name`,`type`,`photoUrl`,`participantIds`,`lastMessage`,`lastMessageTime`,`lastMessageSenderId`,`unreadCount`,`pinnedMessageId`,`createdAt`,`createdBy`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `conversations` (`id`,`name`,`type`,`photoUrl`,`participantIds`,`lastMessage`,`lastMessageTime`,`lastMessageSenderId`,`lastMessageStatus`,`unreadCount`,`pinnedMessageId`,`createdAt`,`createdBy`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -66,10 +66,11 @@ public final class ConversationDao_Impl implements ConversationDao {
         statement.bindString(6, entity.getLastMessage());
         statement.bindLong(7, entity.getLastMessageTime());
         statement.bindString(8, entity.getLastMessageSenderId());
-        statement.bindLong(9, entity.getUnreadCount());
-        statement.bindString(10, entity.getPinnedMessageId());
-        statement.bindLong(11, entity.getCreatedAt());
-        statement.bindString(12, entity.getCreatedBy());
+        statement.bindString(9, entity.getLastMessageStatus());
+        statement.bindLong(10, entity.getUnreadCount());
+        statement.bindString(11, entity.getPinnedMessageId());
+        statement.bindLong(12, entity.getCreatedAt());
+        statement.bindString(13, entity.getCreatedBy());
       }
     };
     this.__deletionAdapterOfConversationEntity = new EntityDeletionOrUpdateAdapter<ConversationEntity>(__db) {
@@ -89,7 +90,7 @@ public final class ConversationDao_Impl implements ConversationDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `conversations` SET `id` = ?,`name` = ?,`type` = ?,`photoUrl` = ?,`participantIds` = ?,`lastMessage` = ?,`lastMessageTime` = ?,`lastMessageSenderId` = ?,`unreadCount` = ?,`pinnedMessageId` = ?,`createdAt` = ?,`createdBy` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `conversations` SET `id` = ?,`name` = ?,`type` = ?,`photoUrl` = ?,`participantIds` = ?,`lastMessage` = ?,`lastMessageTime` = ?,`lastMessageSenderId` = ?,`lastMessageStatus` = ?,`unreadCount` = ?,`pinnedMessageId` = ?,`createdAt` = ?,`createdBy` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -103,11 +104,12 @@ public final class ConversationDao_Impl implements ConversationDao {
         statement.bindString(6, entity.getLastMessage());
         statement.bindLong(7, entity.getLastMessageTime());
         statement.bindString(8, entity.getLastMessageSenderId());
-        statement.bindLong(9, entity.getUnreadCount());
-        statement.bindString(10, entity.getPinnedMessageId());
-        statement.bindLong(11, entity.getCreatedAt());
-        statement.bindString(12, entity.getCreatedBy());
-        statement.bindString(13, entity.getId());
+        statement.bindString(9, entity.getLastMessageStatus());
+        statement.bindLong(10, entity.getUnreadCount());
+        statement.bindString(11, entity.getPinnedMessageId());
+        statement.bindLong(12, entity.getCreatedAt());
+        statement.bindString(13, entity.getCreatedBy());
+        statement.bindString(14, entity.getId());
       }
     };
     this.__preparedStmtOfUpdateUnreadCount = new SharedSQLiteStatement(__db) {
@@ -318,6 +320,7 @@ public final class ConversationDao_Impl implements ConversationDao {
           final int _cursorIndexOfLastMessage = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessage");
           final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
           final int _cursorIndexOfLastMessageSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageSenderId");
+          final int _cursorIndexOfLastMessageStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageStatus");
           final int _cursorIndexOfUnreadCount = CursorUtil.getColumnIndexOrThrow(_cursor, "unreadCount");
           final int _cursorIndexOfPinnedMessageId = CursorUtil.getColumnIndexOrThrow(_cursor, "pinnedMessageId");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
@@ -341,6 +344,8 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
             final String _tmpLastMessageSenderId;
             _tmpLastMessageSenderId = _cursor.getString(_cursorIndexOfLastMessageSenderId);
+            final String _tmpLastMessageStatus;
+            _tmpLastMessageStatus = _cursor.getString(_cursorIndexOfLastMessageStatus);
             final int _tmpUnreadCount;
             _tmpUnreadCount = _cursor.getInt(_cursorIndexOfUnreadCount);
             final String _tmpPinnedMessageId;
@@ -349,7 +354,7 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final String _tmpCreatedBy;
             _tmpCreatedBy = _cursor.getString(_cursorIndexOfCreatedBy);
-            _item = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
+            _item = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpLastMessageStatus,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
             _result.add(_item);
           }
           return _result;
@@ -385,6 +390,7 @@ public final class ConversationDao_Impl implements ConversationDao {
           final int _cursorIndexOfLastMessage = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessage");
           final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
           final int _cursorIndexOfLastMessageSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageSenderId");
+          final int _cursorIndexOfLastMessageStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageStatus");
           final int _cursorIndexOfUnreadCount = CursorUtil.getColumnIndexOrThrow(_cursor, "unreadCount");
           final int _cursorIndexOfPinnedMessageId = CursorUtil.getColumnIndexOrThrow(_cursor, "pinnedMessageId");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
@@ -407,6 +413,8 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
             final String _tmpLastMessageSenderId;
             _tmpLastMessageSenderId = _cursor.getString(_cursorIndexOfLastMessageSenderId);
+            final String _tmpLastMessageStatus;
+            _tmpLastMessageStatus = _cursor.getString(_cursorIndexOfLastMessageStatus);
             final int _tmpUnreadCount;
             _tmpUnreadCount = _cursor.getInt(_cursorIndexOfUnreadCount);
             final String _tmpPinnedMessageId;
@@ -415,7 +423,7 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final String _tmpCreatedBy;
             _tmpCreatedBy = _cursor.getString(_cursorIndexOfCreatedBy);
-            _result = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
+            _result = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpLastMessageStatus,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
           } else {
             _result = null;
           }
@@ -454,6 +462,7 @@ public final class ConversationDao_Impl implements ConversationDao {
           final int _cursorIndexOfLastMessage = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessage");
           final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
           final int _cursorIndexOfLastMessageSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageSenderId");
+          final int _cursorIndexOfLastMessageStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageStatus");
           final int _cursorIndexOfUnreadCount = CursorUtil.getColumnIndexOrThrow(_cursor, "unreadCount");
           final int _cursorIndexOfPinnedMessageId = CursorUtil.getColumnIndexOrThrow(_cursor, "pinnedMessageId");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
@@ -476,6 +485,8 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
             final String _tmpLastMessageSenderId;
             _tmpLastMessageSenderId = _cursor.getString(_cursorIndexOfLastMessageSenderId);
+            final String _tmpLastMessageStatus;
+            _tmpLastMessageStatus = _cursor.getString(_cursorIndexOfLastMessageStatus);
             final int _tmpUnreadCount;
             _tmpUnreadCount = _cursor.getInt(_cursorIndexOfUnreadCount);
             final String _tmpPinnedMessageId;
@@ -484,7 +495,7 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final String _tmpCreatedBy;
             _tmpCreatedBy = _cursor.getString(_cursorIndexOfCreatedBy);
-            _result = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
+            _result = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpLastMessageStatus,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
           } else {
             _result = null;
           }
@@ -517,6 +528,7 @@ public final class ConversationDao_Impl implements ConversationDao {
           final int _cursorIndexOfLastMessage = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessage");
           final int _cursorIndexOfLastMessageTime = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageTime");
           final int _cursorIndexOfLastMessageSenderId = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageSenderId");
+          final int _cursorIndexOfLastMessageStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "lastMessageStatus");
           final int _cursorIndexOfUnreadCount = CursorUtil.getColumnIndexOrThrow(_cursor, "unreadCount");
           final int _cursorIndexOfPinnedMessageId = CursorUtil.getColumnIndexOrThrow(_cursor, "pinnedMessageId");
           final int _cursorIndexOfCreatedAt = CursorUtil.getColumnIndexOrThrow(_cursor, "createdAt");
@@ -540,6 +552,8 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpLastMessageTime = _cursor.getLong(_cursorIndexOfLastMessageTime);
             final String _tmpLastMessageSenderId;
             _tmpLastMessageSenderId = _cursor.getString(_cursorIndexOfLastMessageSenderId);
+            final String _tmpLastMessageStatus;
+            _tmpLastMessageStatus = _cursor.getString(_cursorIndexOfLastMessageStatus);
             final int _tmpUnreadCount;
             _tmpUnreadCount = _cursor.getInt(_cursorIndexOfUnreadCount);
             final String _tmpPinnedMessageId;
@@ -548,7 +562,7 @@ public final class ConversationDao_Impl implements ConversationDao {
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final String _tmpCreatedBy;
             _tmpCreatedBy = _cursor.getString(_cursorIndexOfCreatedBy);
-            _item = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
+            _item = new ConversationEntity(_tmpId,_tmpName,_tmpType,_tmpPhotoUrl,_tmpParticipantIds,_tmpLastMessage,_tmpLastMessageTime,_tmpLastMessageSenderId,_tmpLastMessageStatus,_tmpUnreadCount,_tmpPinnedMessageId,_tmpCreatedAt,_tmpCreatedBy);
             _result.add(_item);
           }
           return _result;

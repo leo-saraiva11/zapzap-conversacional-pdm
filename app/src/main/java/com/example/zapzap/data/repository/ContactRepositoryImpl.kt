@@ -159,11 +159,15 @@ class ContactRepositoryImpl @Inject constructor(
                 .get().await()
 
             if (userDoc.isEmpty) {
-                // Buscar por telefone
-                userDoc = firestore.collection("users")
-                    .whereEqualTo("phone", query)
-                    .limit(1)
-                    .get().await()
+                // Buscar por telefone — tentar variações de formato
+                val phoneVariations = generatePhoneVariations(query)
+                for (phone in phoneVariations) {
+                    userDoc = firestore.collection("users")
+                        .whereEqualTo("phone", phone)
+                        .limit(1)
+                        .get().await()
+                    if (!userDoc.isEmpty) break
+                }
             }
 
             if (userDoc.isEmpty) {
@@ -185,5 +189,33 @@ class ContactRepositoryImpl @Inject constructor(
         } catch (e: Exception) {
             Result.failure(e)
         }
+    }
+
+    /**
+     * Gera variações do número de telefone para busca flexível.
+     * Ex: "(11) 99999-9999" → ["11999999999", "+5511999999999", "5511999999999"]
+     */
+    private fun generatePhoneVariations(phone: String): List<String> {
+        val digitsOnly = phone.replace(Regex("[^\\d]"), "")
+        val variations = mutableListOf<String>()
+        
+        variations.add(digitsOnly)
+        variations.add("+$digitsOnly")
+        
+        // Se começa com 55 (Brasil), adicionar sem o 55 e com +55
+        if (digitsOnly.startsWith("55") && digitsOnly.length > 10) {
+            val withoutCountry = digitsOnly.removePrefix("55")
+            variations.add(withoutCountry)
+            variations.add("+55$withoutCountry")
+        } else if (digitsOnly.length in 10..11) {
+            // Número local brasileiro — adicionar com código do país
+            variations.add("55$digitsOnly")
+            variations.add("+55$digitsOnly")
+        }
+        
+        // Adicionar o original
+        variations.add(phone)
+        
+        return variations.distinct()
     }
 }

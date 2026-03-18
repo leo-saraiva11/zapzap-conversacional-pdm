@@ -4,11 +4,13 @@ import android.content.Context
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
+import com.example.zapzap.domain.model.ConversationType
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.zapzap.domain.model.Message
 import com.example.zapzap.domain.model.MessageStatus
+import com.example.zapzap.domain.model.User
 import com.example.zapzap.domain.model.MessageType
 import com.example.zapzap.domain.repository.AuthRepository
 import com.example.zapzap.domain.repository.ChatRepository
@@ -68,6 +70,9 @@ class ChatViewModel @Inject constructor(
     private val _currentConversation = MutableStateFlow<com.example.zapzap.domain.model.Conversation?>(null)
     val currentConversation: StateFlow<com.example.zapzap.domain.model.Conversation?> = _currentConversation.asStateFlow()
 
+    private val _otherUserProfile = MutableStateFlow<User?>(null)
+    val otherUserProfile: StateFlow<User?> = _otherUserProfile.asStateFlow()
+
     fun fetchMessages(conversationId: String) {
         _conversationId.value = conversationId
         viewModelScope.launch {
@@ -85,6 +90,15 @@ class ChatViewModel @Inject constructor(
             _currentConversation.value = conv
             authRepository.currentUserId?.let { userId ->
                 chatRepository.markAllAsRead(id, userId)
+                // Observar perfil do outro participante para status em tempo real
+                if (conv?.type == ConversationType.INDIVIDUAL) {
+                    val otherUserId = conv.participantIds.firstOrNull { it != userId }
+                    if (otherUserId != null) {
+                        userRepository.getUserProfile(otherUserId).collect { user ->
+                            _otherUserProfile.value = user
+                        }
+                    }
+                }
             }
         }
     }

@@ -33,12 +33,22 @@ fun ProfileScreen(
 ) {
     val user by viewModel.userProfile.collectAsState()
     val isEditing by viewModel.isEditing.collectAsState()
+    val isUploading by viewModel.isUploading.collectAsState()
+    val uploadError by viewModel.uploadError.collectAsState()
 
     var editName by remember(user) { mutableStateOf(user?.displayName ?: "") }
     var editAbout by remember(user) { mutableStateOf(user?.about ?: "") }
     var editStatus by remember(user) { mutableStateOf(user?.status ?: UserStatus.ONLINE) }
 
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+
+    LaunchedEffect(uploadError) {
+        uploadError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearUploadError()
+        }
+    }
     var showPhotoOptions by remember { mutableStateOf(false) }
     var tempCameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
 
@@ -57,6 +67,7 @@ fun ProfileScreen(
     }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = { Text("Perfil", color = MaterialTheme.colorScheme.onPrimary) },
@@ -100,21 +111,28 @@ fun ProfileScreen(
                     .size(120.dp)
                     .clip(CircleShape)
                     .clickable {
-                        if (isEditing) {
-                            showPhotoOptions = true
-                        }
+                        showPhotoOptions = true
                     },
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    if (user?.photoUrl.isNullOrEmpty()) {
+                    val photoUrl = user?.photoUrl
+                    if (photoUrl.isNullOrEmpty()) {
                         Text(
                             text = user?.displayName?.firstOrNull()?.uppercase() ?: "?",
                             style = MaterialTheme.typography.displayMedium
                         )
                     } else {
+                        // Usar ImageRequest para desabilitar cache e forçar reload
+                        val imageRequest = coil.request.ImageRequest.Builder(context)
+                            .data(photoUrl)
+                            .crossfade(true)
+                            .memoryCachePolicy(coil.request.CachePolicy.DISABLED)
+                            .diskCachePolicy(coil.request.CachePolicy.DISABLED)
+                            .build()
+
                         coil.compose.SubcomposeAsyncImage(
-                            model = user?.photoUrl,
+                            model = imageRequest,
                             contentDescription = null,
                             modifier = Modifier.fillMaxSize(),
                             contentScale = androidx.compose.ui.layout.ContentScale.Crop,
@@ -129,10 +147,23 @@ fun ProfileScreen(
                             }
                         )
                     }
-                    if (isEditing) {
+                    // Overlay de upload ou edição
+                    if (isUploading) {
                         Surface(
                             modifier = Modifier.fillMaxSize(),
-                            color = Color.Black.copy(alpha = 0.3f)
+                            color = Color.Black.copy(alpha = 0.5f)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                        }
+                    } else {
+                        Surface(
+                            modifier = Modifier.fillMaxSize(),
+                            color = Color.Black.copy(alpha = 0.2f)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(Icons.Default.CameraAlt, contentDescription = "Mudar foto",

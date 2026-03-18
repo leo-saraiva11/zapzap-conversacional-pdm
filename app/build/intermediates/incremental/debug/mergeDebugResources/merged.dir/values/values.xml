@@ -371,6 +371,7 @@
     <string name="default_error_message">"Invalid input"</string>
     <string name="default_notification_channel_id">zapzap_messages</string>
     <string name="default_popup_window_title" ns2:ignore="ExtraTranslation">"Pop-Up Window"</string>
+    <string name="default_web_client_id" translatable="false">574830179989-jpgbni791qhm4mruaq1hejnbkhqldh1f.apps.googleusercontent.com</string>
     <string name="dropdown_menu">"Dropdown menu"</string>
     <string name="fallback_menu_item_copy_link">Copy link</string>
     <string name="fallback_menu_item_open_in_browser">Open in browser</string>

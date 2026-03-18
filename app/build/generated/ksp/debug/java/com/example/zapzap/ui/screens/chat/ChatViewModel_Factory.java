@@ -2,6 +2,7 @@ package com.example.zapzap.ui.screens.chat;
 
 import com.example.zapzap.domain.repository.AuthRepository;
 import com.example.zapzap.domain.repository.ChatRepository;
+import com.example.zapzap.domain.repository.GroupRepository;
 import com.example.zapzap.domain.repository.MediaRepository;
 import com.example.zapzap.domain.repository.UserRepository;
 import dagger.internal.DaggerGenerated;
@@ -34,31 +35,36 @@ public final class ChatViewModel_Factory implements Factory<ChatViewModel> {
 
   private final Provider<UserRepository> userRepositoryProvider;
 
+  private final Provider<GroupRepository> groupRepositoryProvider;
+
   public ChatViewModel_Factory(Provider<ChatRepository> chatRepositoryProvider,
       Provider<AuthRepository> authRepositoryProvider,
       Provider<MediaRepository> mediaRepositoryProvider,
-      Provider<UserRepository> userRepositoryProvider) {
+      Provider<UserRepository> userRepositoryProvider,
+      Provider<GroupRepository> groupRepositoryProvider) {
     this.chatRepositoryProvider = chatRepositoryProvider;
     this.authRepositoryProvider = authRepositoryProvider;
     this.mediaRepositoryProvider = mediaRepositoryProvider;
     this.userRepositoryProvider = userRepositoryProvider;
+    this.groupRepositoryProvider = groupRepositoryProvider;
   }
 
   @Override
   public ChatViewModel get() {
-    return newInstance(chatRepositoryProvider.get(), authRepositoryProvider.get(), mediaRepositoryProvider.get(), userRepositoryProvider.get());
+    return newInstance(chatRepositoryProvider.get(), authRepositoryProvider.get(), mediaRepositoryProvider.get(), userRepositoryProvider.get(), groupRepositoryProvider.get());
   }
 
   public static ChatViewModel_Factory create(Provider<ChatRepository> chatRepositoryProvider,
       Provider<AuthRepository> authRepositoryProvider,
       Provider<MediaRepository> mediaRepositoryProvider,
-      Provider<UserRepository> userRepositoryProvider) {
-    return new ChatViewModel_Factory(chatRepositoryProvider, authRepositoryProvider, mediaRepositoryProvider, userRepositoryProvider);
+      Provider<UserRepository> userRepositoryProvider,
+      Provider<GroupRepository> groupRepositoryProvider) {
+    return new ChatViewModel_Factory(chatRepositoryProvider, authRepositoryProvider, mediaRepositoryProvider, userRepositoryProvider, groupRepositoryProvider);
   }
 
   public static ChatViewModel newInstance(ChatRepository chatRepository,
-      AuthRepository authRepository, MediaRepository mediaRepository,
-      UserRepository userRepository) {
-    return new ChatViewModel(chatRepository, authRepository, mediaRepository, userRepository);
+      AuthRepository authRepository, MediaRepository mediaRepository, UserRepository userRepository,
+      GroupRepository groupRepository) {
+    return new ChatViewModel(chatRepository, authRepository, mediaRepository, userRepository, groupRepository);
   }
 }

@@ -48,13 +48,19 @@ public final class MessageDao_Impl implements MessageDao {
 
   private final SharedSQLiteStatement __preparedStmtOfMarkAsSynced;
 
+  private final SharedSQLiteStatement __preparedStmtOfDeleteMessageById;
+
+  private final SharedSQLiteStatement __preparedStmtOfDeleteMessagesByConversation;
+
+  private final SharedSQLiteStatement __preparedStmtOfUpdateMessageText;
+
   public MessageDao_Impl(@NonNull final RoomDatabase __db) {
     this.__db = __db;
     this.__insertionAdapterOfMessageEntity = new EntityInsertionAdapter<MessageEntity>(__db) {
       @Override
       @NonNull
       protected String createQuery() {
-        return "INSERT OR REPLACE INTO `messages` (`id`,`conversationId`,`senderId`,`senderName`,`text`,`type`,`mediaUrl`,`localMediaPath`,`latitude`,`longitude`,`timestamp`,`status`,`isPinned`,`isEncrypted`,`isSynced`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
+        return "INSERT OR REPLACE INTO `messages` (`id`,`conversationId`,`senderId`,`senderName`,`text`,`type`,`mediaUrl`,`localMediaPath`,`latitude`,`longitude`,`timestamp`,`status`,`isPinned`,`isEncrypted`,`isEdited`,`isSynced`) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)";
       }
 
       @Override
@@ -76,8 +82,10 @@ public final class MessageDao_Impl implements MessageDao {
         statement.bindLong(13, _tmp);
         final int _tmp_1 = entity.isEncrypted() ? 1 : 0;
         statement.bindLong(14, _tmp_1);
-        final int _tmp_2 = entity.isSynced() ? 1 : 0;
+        final int _tmp_2 = entity.isEdited() ? 1 : 0;
         statement.bindLong(15, _tmp_2);
+        final int _tmp_3 = entity.isSynced() ? 1 : 0;
+        statement.bindLong(16, _tmp_3);
       }
     };
     this.__deletionAdapterOfMessageEntity = new EntityDeletionOrUpdateAdapter<MessageEntity>(__db) {
@@ -97,7 +105,7 @@ public final class MessageDao_Impl implements MessageDao {
       @Override
       @NonNull
       protected String createQuery() {
-        return "UPDATE OR ABORT `messages` SET `id` = ?,`conversationId` = ?,`senderId` = ?,`senderName` = ?,`text` = ?,`type` = ?,`mediaUrl` = ?,`localMediaPath` = ?,`latitude` = ?,`longitude` = ?,`timestamp` = ?,`status` = ?,`isPinned` = ?,`isEncrypted` = ?,`isSynced` = ? WHERE `id` = ?";
+        return "UPDATE OR ABORT `messages` SET `id` = ?,`conversationId` = ?,`senderId` = ?,`senderName` = ?,`text` = ?,`type` = ?,`mediaUrl` = ?,`localMediaPath` = ?,`latitude` = ?,`longitude` = ?,`timestamp` = ?,`status` = ?,`isPinned` = ?,`isEncrypted` = ?,`isEdited` = ?,`isSynced` = ? WHERE `id` = ?";
       }
 
       @Override
@@ -119,9 +127,11 @@ public final class MessageDao_Impl implements MessageDao {
         statement.bindLong(13, _tmp);
         final int _tmp_1 = entity.isEncrypted() ? 1 : 0;
         statement.bindLong(14, _tmp_1);
-        final int _tmp_2 = entity.isSynced() ? 1 : 0;
+        final int _tmp_2 = entity.isEdited() ? 1 : 0;
         statement.bindLong(15, _tmp_2);
-        statement.bindString(16, entity.getId());
+        final int _tmp_3 = entity.isSynced() ? 1 : 0;
+        statement.bindLong(16, _tmp_3);
+        statement.bindString(17, entity.getId());
       }
     };
     this.__preparedStmtOfUpdateMessageStatus = new SharedSQLiteStatement(__db) {
@@ -153,6 +163,30 @@ public final class MessageDao_Impl implements MessageDao {
       @NonNull
       public String createQuery() {
         final String _query = "UPDATE messages SET isSynced = 1 WHERE id = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfDeleteMessageById = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM messages WHERE id = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfDeleteMessagesByConversation = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "DELETE FROM messages WHERE conversationId = ?";
+        return _query;
+      }
+    };
+    this.__preparedStmtOfUpdateMessageText = new SharedSQLiteStatement(__db) {
+      @Override
+      @NonNull
+      public String createQuery() {
+        final String _query = "UPDATE messages SET text = ?, isEdited = 1 WHERE id = ?";
         return _query;
       }
     };
@@ -343,6 +377,86 @@ public final class MessageDao_Impl implements MessageDao {
   }
 
   @Override
+  public Object deleteMessageById(final String messageId,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteMessageById.acquire();
+        int _argIndex = 1;
+        _stmt.bindString(_argIndex, messageId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeleteMessageById.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object deleteMessagesByConversation(final String conversationId,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfDeleteMessagesByConversation.acquire();
+        int _argIndex = 1;
+        _stmt.bindString(_argIndex, conversationId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfDeleteMessagesByConversation.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
+  public Object updateMessageText(final String messageId, final String text,
+      final Continuation<? super Unit> $completion) {
+    return CoroutinesRoom.execute(__db, true, new Callable<Unit>() {
+      @Override
+      @NonNull
+      public Unit call() throws Exception {
+        final SupportSQLiteStatement _stmt = __preparedStmtOfUpdateMessageText.acquire();
+        int _argIndex = 1;
+        _stmt.bindString(_argIndex, text);
+        _argIndex = 2;
+        _stmt.bindString(_argIndex, messageId);
+        try {
+          __db.beginTransaction();
+          try {
+            _stmt.executeUpdateDelete();
+            __db.setTransactionSuccessful();
+            return Unit.INSTANCE;
+          } finally {
+            __db.endTransaction();
+          }
+        } finally {
+          __preparedStmtOfUpdateMessageText.release(_stmt);
+        }
+      }
+    }, $completion);
+  }
+
+  @Override
   public Flow<List<MessageEntity>> getMessagesByConversation(final String conversationId) {
     final String _sql = "SELECT * FROM messages WHERE conversationId = ? ORDER BY timestamp ASC";
     final RoomSQLiteQuery _statement = RoomSQLiteQuery.acquire(_sql, 1);
@@ -368,6 +482,7 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfIsSynced = CursorUtil.getColumnIndexOrThrow(_cursor, "isSynced");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
@@ -404,11 +519,15 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
             _tmpIsEncrypted = _tmp_1 != 0;
-            final boolean _tmpIsSynced;
+            final boolean _tmpIsEdited;
             final int _tmp_2;
-            _tmp_2 = _cursor.getInt(_cursorIndexOfIsSynced);
-            _tmpIsSynced = _tmp_2 != 0;
-            _item = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsSynced);
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsEdited);
+            _tmpIsEdited = _tmp_2 != 0;
+            final boolean _tmpIsSynced;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfIsSynced);
+            _tmpIsSynced = _tmp_3 != 0;
+            _item = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsEdited,_tmpIsSynced);
             _result.add(_item);
           }
           return _result;
@@ -452,6 +571,7 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfIsSynced = CursorUtil.getColumnIndexOrThrow(_cursor, "isSynced");
           final MessageEntity _result;
           if (_cursor.moveToFirst()) {
@@ -487,11 +607,15 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
             _tmpIsEncrypted = _tmp_1 != 0;
-            final boolean _tmpIsSynced;
+            final boolean _tmpIsEdited;
             final int _tmp_2;
-            _tmp_2 = _cursor.getInt(_cursorIndexOfIsSynced);
-            _tmpIsSynced = _tmp_2 != 0;
-            _result = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsSynced);
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsEdited);
+            _tmpIsEdited = _tmp_2 != 0;
+            final boolean _tmpIsSynced;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfIsSynced);
+            _tmpIsSynced = _tmp_3 != 0;
+            _result = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsEdited,_tmpIsSynced);
           } else {
             _result = null;
           }
@@ -532,6 +656,7 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfIsSynced = CursorUtil.getColumnIndexOrThrow(_cursor, "isSynced");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
@@ -568,11 +693,15 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
             _tmpIsEncrypted = _tmp_1 != 0;
-            final boolean _tmpIsSynced;
+            final boolean _tmpIsEdited;
             final int _tmp_2;
-            _tmp_2 = _cursor.getInt(_cursorIndexOfIsSynced);
-            _tmpIsSynced = _tmp_2 != 0;
-            _item = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsSynced);
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsEdited);
+            _tmpIsEdited = _tmp_2 != 0;
+            final boolean _tmpIsSynced;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfIsSynced);
+            _tmpIsSynced = _tmp_3 != 0;
+            _item = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsEdited,_tmpIsSynced);
             _result.add(_item);
           }
           return _result;
@@ -614,6 +743,7 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfIsSynced = CursorUtil.getColumnIndexOrThrow(_cursor, "isSynced");
           final MessageEntity _result;
           if (_cursor.moveToFirst()) {
@@ -649,11 +779,15 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
             _tmpIsEncrypted = _tmp_1 != 0;
-            final boolean _tmpIsSynced;
+            final boolean _tmpIsEdited;
             final int _tmp_2;
-            _tmp_2 = _cursor.getInt(_cursorIndexOfIsSynced);
-            _tmpIsSynced = _tmp_2 != 0;
-            _result = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsSynced);
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsEdited);
+            _tmpIsEdited = _tmp_2 != 0;
+            final boolean _tmpIsSynced;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfIsSynced);
+            _tmpIsSynced = _tmp_3 != 0;
+            _result = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsEdited,_tmpIsSynced);
           } else {
             _result = null;
           }
@@ -695,6 +829,7 @@ public final class MessageDao_Impl implements MessageDao {
           final int _cursorIndexOfStatus = CursorUtil.getColumnIndexOrThrow(_cursor, "status");
           final int _cursorIndexOfIsPinned = CursorUtil.getColumnIndexOrThrow(_cursor, "isPinned");
           final int _cursorIndexOfIsEncrypted = CursorUtil.getColumnIndexOrThrow(_cursor, "isEncrypted");
+          final int _cursorIndexOfIsEdited = CursorUtil.getColumnIndexOrThrow(_cursor, "isEdited");
           final int _cursorIndexOfIsSynced = CursorUtil.getColumnIndexOrThrow(_cursor, "isSynced");
           final List<MessageEntity> _result = new ArrayList<MessageEntity>(_cursor.getCount());
           while (_cursor.moveToNext()) {
@@ -731,11 +866,15 @@ public final class MessageDao_Impl implements MessageDao {
             final int _tmp_1;
             _tmp_1 = _cursor.getInt(_cursorIndexOfIsEncrypted);
             _tmpIsEncrypted = _tmp_1 != 0;
-            final boolean _tmpIsSynced;
+            final boolean _tmpIsEdited;
             final int _tmp_2;
-            _tmp_2 = _cursor.getInt(_cursorIndexOfIsSynced);
-            _tmpIsSynced = _tmp_2 != 0;
-            _item = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsSynced);
+            _tmp_2 = _cursor.getInt(_cursorIndexOfIsEdited);
+            _tmpIsEdited = _tmp_2 != 0;
+            final boolean _tmpIsSynced;
+            final int _tmp_3;
+            _tmp_3 = _cursor.getInt(_cursorIndexOfIsSynced);
+            _tmpIsSynced = _tmp_3 != 0;
+            _item = new MessageEntity(_tmpId,_tmpConversationId,_tmpSenderId,_tmpSenderName,_tmpText,_tmpType,_tmpMediaUrl,_tmpLocalMediaPath,_tmpLatitude,_tmpLongitude,_tmpTimestamp,_tmpStatus,_tmpIsPinned,_tmpIsEncrypted,_tmpIsEdited,_tmpIsSynced);
             _result.add(_item);
           }
           return _result;

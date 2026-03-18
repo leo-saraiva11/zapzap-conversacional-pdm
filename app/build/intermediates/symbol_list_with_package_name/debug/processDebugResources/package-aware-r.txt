@@ -1015,6 +1015,7 @@ layout select_dialog_multichoice_material
 layout select_dialog_singlechoice_material
 layout support_simple_spinner_dropdown_item
 raw firebase_common_keep
+raw service_account
 string abc_action_bar_home_description
 string abc_action_bar_up_description
 string abc_action_menu_overflow_description
@@ -1077,6 +1078,7 @@ string copy_toast_msg
 string default_error_message
 string default_notification_channel_id
 string default_popup_window_title
+string default_web_client_id
 string dropdown_menu
 string fallback_menu_item_copy_link
 string fallback_menu_item_open_in_browser

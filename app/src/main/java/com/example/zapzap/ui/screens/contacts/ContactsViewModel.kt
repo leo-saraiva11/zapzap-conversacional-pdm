@@ -73,6 +73,18 @@ class ContactsViewModel @Inject constructor(
         viewModelScope.launch {
             val userId = authRepository.currentUserId ?: return@launch
             contactRepository.removeContact(userId, contactId)
+            
+            // Buscar e deletar a conversa individual com esse contato
+            try {
+                val conversations = chatRepository.getConversations(userId)
+                conversations.first().forEach { conv ->
+                    if (conv.type == com.example.zapzap.domain.model.ConversationType.INDIVIDUAL &&
+                        conv.participantIds.contains(contactId) &&
+                        conv.participantIds.contains(userId)) {
+                        chatRepository.deleteConversation(conv.id)
+                    }
+                }
+            } catch (_: Exception) { /* Se falhar ao deletar conversa, pelo menos o contato foi removido */ }
         }
     }
 

@@ -43,6 +43,9 @@ interface ChatRepository {
     /** Deleta uma mensagem */
     suspend fun deleteMessage(conversationId: String, messageId: String): Result<Unit>
 
+    /** Deleta uma conversa inteira */
+    suspend fun deleteConversation(conversationId: String): Result<Unit>
+
     /** Edita o texto de uma mensagem */
     suspend fun editMessage(conversationId: String, messageId: String, newText: String): Result<Unit>
 

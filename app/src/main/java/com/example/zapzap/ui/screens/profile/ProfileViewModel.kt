@@ -20,6 +20,12 @@ class ProfileViewModel @Inject constructor(
     private val _isEditing = MutableStateFlow(false)
     val isEditing: StateFlow<Boolean> = _isEditing.asStateFlow()
 
+    private val _isUploading = MutableStateFlow(false)
+    val isUploading: StateFlow<Boolean> = _isUploading.asStateFlow()
+
+    private val _uploadError = MutableStateFlow<String?>(null)
+    val uploadError: StateFlow<String?> = _uploadError.asStateFlow()
+
     val userProfile: StateFlow<User?> = flow {
         val userId = authRepository.currentUserId ?: return@flow
         emitAll(userRepository.getUserProfile(userId))
@@ -45,8 +51,22 @@ class ProfileViewModel @Inject constructor(
 
     fun updateProfilePhoto(uri: android.net.Uri) {
         viewModelScope.launch {
-            val userId = authRepository.currentUserId ?: return@launch
-            userRepository.updateProfilePhoto(userId, uri)
+            _isUploading.value = true
+            _uploadError.value = null
+            val userId = authRepository.currentUserId ?: run {
+                _isUploading.value = false
+                _uploadError.value = "Usuário não autenticado"
+                return@launch
+            }
+            val result = userRepository.updateProfilePhoto(userId, uri)
+            _isUploading.value = false
+            result.onFailure { e ->
+                _uploadError.value = e.message ?: "Erro ao atualizar foto"
+            }
         }
+    }
+
+    fun clearUploadError() {
+        _uploadError.value = null
     }
 }

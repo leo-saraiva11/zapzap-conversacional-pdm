@@ -45,9 +45,12 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.example.zapzap.domain.model.ConversationType
 import com.example.zapzap.domain.model.Message
 import com.example.zapzap.domain.model.MessageStatus
 import com.example.zapzap.domain.model.MessageType
+import com.example.zapzap.domain.model.User
+import com.example.zapzap.domain.model.UserStatus
 import com.example.zapzap.ui.theme.*
 import com.example.zapzap.ui.util.DateFormatUtils
 import com.example.zapzap.ui.util.ImageUtils
@@ -142,7 +145,17 @@ fun ChatScreen(
     var showGroupInfo by remember { mutableStateOf(false) }
 
     val currentConversation by viewModel.currentConversation.collectAsState()
+    val otherUserProfile by viewModel.otherUserProfile.collectAsState()
     val isGroupAdmin = currentConversation?.createdBy == viewModel.currentUserId
+    var showContactInfo by remember { mutableStateOf(false) }
+
+    // Dialog: Info do Contato (conversa individual)
+    if (showContactInfo && currentConversation?.type == ConversationType.INDIVIDUAL && otherUserProfile != null) {
+        ContactInfoDialog(
+            user = otherUserProfile!!,
+            onDismiss = { showContactInfo = false }
+        )
+    }
 
     // Dialog: Info do Grupo
     if (showGroupInfo) {
@@ -239,7 +252,60 @@ fun ChatScreen(
             } else {
                 TopAppBar(
                     title = {
-                        Text(conversationName.ifBlank { "Carregando..." }, fontWeight = FontWeight.Bold, color = Color.White)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.clickable {
+                                if (currentConversation?.type == ConversationType.INDIVIDUAL) {
+                                    showContactInfo = true
+                                } else {
+                                    showGroupInfo = true
+                                }
+                            }
+                        ) {
+                            // Avatar do contato/grupo
+                            if (otherUserProfile != null && currentConversation?.type == ConversationType.INDIVIDUAL) {
+                                val photo = otherUserProfile?.photoUrl ?: ""
+                                if (photo.isNotEmpty()) {
+                                    AsyncImage(
+                                        model = photo,
+                                        contentDescription = null,
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier.size(40.dp).clip(CircleShape)
+                                    )
+                                } else {
+                                    Surface(
+                                        modifier = Modifier.size(40.dp).clip(CircleShape),
+                                        color = MaterialTheme.colorScheme.primaryContainer
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                conversationName.firstOrNull()?.uppercase() ?: "?",
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                            }
+                            Column {
+                                Text(conversationName.ifBlank { "Carregando..." }, fontWeight = FontWeight.Bold, color = Color.White)
+                                // Status do contato
+                                if (currentConversation?.type == ConversationType.INDIVIDUAL && otherUserProfile != null) {
+                                    val statusText = otherUserProfile?.status?.toDisplayString() ?: "Offline"
+                                    val statusColor = when (otherUserProfile?.status) {
+                                        UserStatus.ONLINE -> StatusOnline
+                                        UserStatus.BUSY -> StatusBusy
+                                        else -> StatusOffline
+                                    }
+                                    Text(
+                                        text = statusText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = statusColor
+                                    )
+                                }
+                            }
+                        }
                     },
                     navigationIcon = {
                         IconButton(onClick = onNavigateBack) {
@@ -250,10 +316,10 @@ fun ChatScreen(
                         IconButton(onClick = { viewModel.toggleSearch() }) {
                             Icon(Icons.Default.Search, contentDescription = null, tint = Color.White)
                         }
-                        IconButton(onClick = { 
-                            showGroupInfo = true 
-                        }) {
-                            Icon(Icons.Default.Group, contentDescription = "Ver Grupo", tint = Color.White)
+                        if (currentConversation?.type == ConversationType.GROUP) {
+                            IconButton(onClick = { showGroupInfo = true }) {
+                                Icon(Icons.Default.Group, contentDescription = "Ver Grupo", tint = Color.White)
+                            }
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -688,6 +754,138 @@ fun AttachmentMenu(onImageClick: () -> Unit, onLocationClick: () -> Unit, onFile
             Column(horizontalAlignment = Alignment.CenterHorizontally) { IconButton(onClick = { onFileClick(); onDismiss() }) { Icon(Icons.Default.InsertDriveFile, null) }; Text("Documento", style = MaterialTheme.typography.labelSmall) }
         }
     })
+}
+
+@Composable
+fun ContactInfoDialog(
+    user: User,
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Foto
+                Surface(
+                    modifier = Modifier.size(100.dp).clip(CircleShape),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                ) {
+                    if (user.photoUrl.isNotEmpty()) {
+                        AsyncImage(
+                            model = user.photoUrl,
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                            Text(
+                                user.displayName.firstOrNull()?.uppercase() ?: "?",
+                                style = MaterialTheme.typography.displaySmall
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Nome
+                Text(
+                    user.displayName.ifBlank { "Sem nome" },
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Status
+                val statusColor = when (user.status) {
+                    UserStatus.ONLINE -> StatusOnline
+                    UserStatus.BUSY -> StatusBusy
+                    else -> StatusOffline
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Surface(
+                        modifier = Modifier.size(10.dp),
+                        shape = CircleShape,
+                        color = statusColor
+                    ) {}
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        user.status.toDisplayString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = statusColor
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Email
+                if (user.email.isNotBlank()) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Email, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(user.email, style = MaterialTheme.typography.bodyMedium)
+                            Text("Email", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Telefone
+                if (user.phone.isNotBlank()) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Phone, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text(user.phone, style = MaterialTheme.typography.bodyMedium)
+                            Text("Telefone", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Recado
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Info, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(user.about.ifBlank { "Olá! Estou usando o ZapZap." }, style = MaterialTheme.typography.bodyMedium)
+                        Text("Recado", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider()
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Indicador de criptografia
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Lock, null, modifier = Modifier.size(20.dp), tint = Color(0xFF34B7F1))
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text("Criptografia ativa", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Text("Mensagens protegidas com AES-128", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+                TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
+                    Text("Fechar")
+                }
+            }
+        }
+    }
 }
 
 @Composable

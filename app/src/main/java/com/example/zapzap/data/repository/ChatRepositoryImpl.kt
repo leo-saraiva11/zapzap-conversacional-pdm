@@ -103,8 +103,15 @@ class ChatRepositoryImpl @Inject constructor(
                             m
                         }
 
-                        // Mark as READ if we are the recipient and it's not READ yet
-                        if (finalMsg.senderId != userId && finalMsg.status != MessageStatus.READ) {
+                        // Se somos o destinatário e a msg está em SENT, marcar como DELIVERED
+                        // (fallback para quando o push FCM não chega)
+                        if (finalMsg.senderId != userId && finalMsg.status == MessageStatus.SENT) {
+                            launch {
+                                updateMessageStatus(conversationId, finalMsg.id, MessageStatus.DELIVERED)
+                            }
+                        }
+                        // Depois marca como READ quando o usuário abriu a conversa
+                        if (finalMsg.senderId != userId && (finalMsg.status == MessageStatus.SENT || finalMsg.status == MessageStatus.DELIVERED)) {
                             launch {
                                 updateMessageStatus(conversationId, finalMsg.id, MessageStatus.READ)
                             }
@@ -339,6 +346,39 @@ class ChatRepositoryImpl @Inject constructor(
                 .await()
             
             messageDao.deleteMessageById(messageId)
+            Result.success(Unit)
+        } catch (e: Exception) { Result.failure(e) }
+    }
+
+    override suspend fun deleteConversation(conversationId: String): Result<Unit> {
+        return try {
+            // Deletar todas as mensagens da sub-coleção
+            val messagesQuery = firestore.collection("conversations")
+                .document(conversationId)
+                .collection("messages")
+                .get().await()
+            
+            if (!messagesQuery.isEmpty) {
+                val batch = firestore.batch()
+                for (doc in messagesQuery.documents) {
+                    batch.delete(doc.reference)
+                }
+                batch.commit().await()
+            }
+
+            // Deletar a conversa
+            firestore.collection("conversations")
+                .document(conversationId)
+                .delete()
+                .await()
+
+            // Limpar cache local
+            messageDao.deleteMessagesByConversation(conversationId)
+            val localConv = conversationDao.getConversationByIdOnce(conversationId)
+            if (localConv != null) {
+                conversationDao.deleteConversation(localConv)
+            }
+
             Result.success(Unit)
         } catch (e: Exception) { Result.failure(e) }
     }

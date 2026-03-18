@@ -166,10 +166,19 @@ private fun ContactItem(
                 color = MaterialTheme.colorScheme.primaryContainer
             ) {
                 Box(contentAlignment = Alignment.Center) {
-                    Text(
-                        contact.displayName.firstOrNull()?.uppercase() ?: "?",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    if (contact.photoUrl.isNotEmpty()) {
+                        coil.compose.AsyncImage(
+                            model = contact.photoUrl,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    } else {
+                        Text(
+                            contact.displayName.firstOrNull()?.uppercase() ?: "?",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
                 }
             }
         },

@@ -8,6 +8,7 @@ import com.example.zapzap.domain.model.User
 import com.example.zapzap.domain.model.UserStatus
 import com.example.zapzap.domain.repository.UserRepository
 import com.google.firebase.firestore.FirebaseFirestore
+import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.jan.supabase.storage.Storage
 import kotlinx.coroutines.Dispatchers
@@ -63,36 +64,43 @@ class UserRepositoryImpl @Inject constructor(
 
     override suspend fun updateProfilePhoto(userId: String, photoUri: Uri): Result<String> = withContext(Dispatchers.IO) {
         return@withContext try {
-            val fileName = "profile_${userId}_${UUID.randomUUID()}.jpg"
+            Log.d("ProfilePhoto", "Iniciando upload para userId=$userId, uri=$photoUri")
+            val fileName = "profiles/profile_${userId}_${UUID.randomUUID()}.jpg"
             
             // Ler bytes
             val inputStream = context.contentResolver.openInputStream(photoUri)
             val bytes = inputStream?.use { it.readBytes() } ?: throw Exception("Falha ao ler foto")
+            Log.d("ProfilePhoto", "Bytes lidos: ${bytes.size}")
 
-            // Upload para o bucket 'profile_photos' do Supabase
-            val bucket = supabaseStorage.from("profile_photos")
+            // Upload para o bucket 'images' do Supabase (mesmo bucket usado para mídias)
+            val bucket = supabaseStorage.from("images")
+            Log.d("ProfilePhoto", "Fazendo upload para Supabase bucket 'images', arquivo=$fileName")
             bucket.upload(fileName, bytes) {
                 upsert = true
             }
+            Log.d("ProfilePhoto", "Upload Supabase OK")
 
             val downloadUrl = bucket.publicUrl(fileName)
+            Log.d("ProfilePhoto", "URL gerada: $downloadUrl")
             
-            // Força a URL a ser pública se o bucket for 'profile_photos' e estiver configurado assim no Supabase
-            // Alguns SDKs podem retornar a URL de API privada se não for especificado
             val finalUrl = if (!downloadUrl.contains("/public/")) {
                  downloadUrl.replace("/storage/v1/object/", "/storage/v1/object/public/")
             } else downloadUrl
+            Log.d("ProfilePhoto", "URL final: $finalUrl")
 
             firestore.collection("users").document(userId)
                 .update("photoUrl", finalUrl)
                 .await()
+            Log.d("ProfilePhoto", "Firestore atualizado com a nova URL")
 
             userDao.getUserByIdOnce(userId)?.let { entity ->
                 userDao.updateUser(entity.copy(photoUrl = finalUrl))
             }
 
+            Log.d("ProfilePhoto", "SUCESSO! Foto atualizada")
             Result.success(finalUrl)
         } catch (e: Exception) {
+            Log.e("ProfilePhoto", "ERRO ao atualizar foto: ${e.message}", e)
             Result.failure(e)
         }
     }

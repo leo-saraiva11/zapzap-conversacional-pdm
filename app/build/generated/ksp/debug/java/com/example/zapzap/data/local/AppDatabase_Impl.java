@@ -45,15 +45,15 @@ public final class AppDatabase_Impl extends AppDatabase {
   @Override
   @NonNull
   protected SupportSQLiteOpenHelper createOpenHelper(@NonNull final DatabaseConfiguration config) {
-    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(1) {
+    final SupportSQLiteOpenHelper.Callback _openCallback = new RoomOpenHelper(config, new RoomOpenHelper.Delegate(3) {
       @Override
       public void createAllTables(@NonNull final SupportSQLiteDatabase db) {
         db.execSQL("CREATE TABLE IF NOT EXISTS `users` (`uid` TEXT NOT NULL, `displayName` TEXT NOT NULL, `email` TEXT NOT NULL, `phone` TEXT NOT NULL, `photoUrl` TEXT NOT NULL, `status` TEXT NOT NULL, `lastSeen` INTEGER NOT NULL, `fcmToken` TEXT NOT NULL, `publicKey` TEXT NOT NULL, `about` TEXT NOT NULL, PRIMARY KEY(`uid`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `messages` (`id` TEXT NOT NULL, `conversationId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `text` TEXT NOT NULL, `type` TEXT NOT NULL, `mediaUrl` TEXT NOT NULL, `localMediaPath` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `timestamp` INTEGER NOT NULL, `status` TEXT NOT NULL, `isPinned` INTEGER NOT NULL, `isEncrypted` INTEGER NOT NULL, `isSynced` INTEGER NOT NULL, PRIMARY KEY(`id`))");
-        db.execSQL("CREATE TABLE IF NOT EXISTS `conversations` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `photoUrl` TEXT NOT NULL, `participantIds` TEXT NOT NULL, `lastMessage` TEXT NOT NULL, `lastMessageTime` INTEGER NOT NULL, `lastMessageSenderId` TEXT NOT NULL, `unreadCount` INTEGER NOT NULL, `pinnedMessageId` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `createdBy` TEXT NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `messages` (`id` TEXT NOT NULL, `conversationId` TEXT NOT NULL, `senderId` TEXT NOT NULL, `senderName` TEXT NOT NULL, `text` TEXT NOT NULL, `type` TEXT NOT NULL, `mediaUrl` TEXT NOT NULL, `localMediaPath` TEXT NOT NULL, `latitude` REAL NOT NULL, `longitude` REAL NOT NULL, `timestamp` INTEGER NOT NULL, `status` TEXT NOT NULL, `isPinned` INTEGER NOT NULL, `isEncrypted` INTEGER NOT NULL, `isEdited` INTEGER NOT NULL, `isSynced` INTEGER NOT NULL, PRIMARY KEY(`id`))");
+        db.execSQL("CREATE TABLE IF NOT EXISTS `conversations` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `photoUrl` TEXT NOT NULL, `participantIds` TEXT NOT NULL, `lastMessage` TEXT NOT NULL, `lastMessageTime` INTEGER NOT NULL, `lastMessageSenderId` TEXT NOT NULL, `lastMessageStatus` TEXT NOT NULL, `unreadCount` INTEGER NOT NULL, `pinnedMessageId` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `createdBy` TEXT NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS `contacts` (`id` TEXT NOT NULL, `userId` TEXT NOT NULL, `displayName` TEXT NOT NULL, `phone` TEXT NOT NULL, `email` TEXT NOT NULL, `photoUrl` TEXT NOT NULL, `addedAt` INTEGER NOT NULL, PRIMARY KEY(`id`))");
         db.execSQL("CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)");
-        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f6455e916229583e471016052b81a8e3')");
+        db.execSQL("INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '52d3fad9028d4ba12eb6a1170d718131')");
       }
 
       @Override
@@ -125,7 +125,7 @@ public final class AppDatabase_Impl extends AppDatabase {
                   + " Expected:\n" + _infoUsers + "\n"
                   + " Found:\n" + _existingUsers);
         }
-        final HashMap<String, TableInfo.Column> _columnsMessages = new HashMap<String, TableInfo.Column>(15);
+        final HashMap<String, TableInfo.Column> _columnsMessages = new HashMap<String, TableInfo.Column>(16);
         _columnsMessages.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("conversationId", new TableInfo.Column("conversationId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("senderId", new TableInfo.Column("senderId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -140,6 +140,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsMessages.put("status", new TableInfo.Column("status", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("isPinned", new TableInfo.Column("isPinned", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("isEncrypted", new TableInfo.Column("isEncrypted", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsMessages.put("isEdited", new TableInfo.Column("isEdited", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsMessages.put("isSynced", new TableInfo.Column("isSynced", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         final HashSet<TableInfo.ForeignKey> _foreignKeysMessages = new HashSet<TableInfo.ForeignKey>(0);
         final HashSet<TableInfo.Index> _indicesMessages = new HashSet<TableInfo.Index>(0);
@@ -150,7 +151,7 @@ public final class AppDatabase_Impl extends AppDatabase {
                   + " Expected:\n" + _infoMessages + "\n"
                   + " Found:\n" + _existingMessages);
         }
-        final HashMap<String, TableInfo.Column> _columnsConversations = new HashMap<String, TableInfo.Column>(12);
+        final HashMap<String, TableInfo.Column> _columnsConversations = new HashMap<String, TableInfo.Column>(13);
         _columnsConversations.put("id", new TableInfo.Column("id", "TEXT", true, 1, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsConversations.put("name", new TableInfo.Column("name", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsConversations.put("type", new TableInfo.Column("type", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -159,6 +160,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         _columnsConversations.put("lastMessage", new TableInfo.Column("lastMessage", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsConversations.put("lastMessageTime", new TableInfo.Column("lastMessageTime", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsConversations.put("lastMessageSenderId", new TableInfo.Column("lastMessageSenderId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
+        _columnsConversations.put("lastMessageStatus", new TableInfo.Column("lastMessageStatus", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsConversations.put("unreadCount", new TableInfo.Column("unreadCount", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsConversations.put("pinnedMessageId", new TableInfo.Column("pinnedMessageId", "TEXT", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
         _columnsConversations.put("createdAt", new TableInfo.Column("createdAt", "INTEGER", true, 0, null, TableInfo.CREATED_FROM_ENTITY));
@@ -191,7 +193,7 @@ public final class AppDatabase_Impl extends AppDatabase {
         }
         return new RoomOpenHelper.ValidationResult(true, null);
       }
-    }, "f6455e916229583e471016052b81a8e3", "5919b8d353a9ab3c0d00e4181f244420");
+    }, "52d3fad9028d4ba12eb6a1170d718131", "ad59d7198b8092c15cd42f1be19e70c9");
     final SupportSQLiteOpenHelper.Configuration _sqliteConfig = SupportSQLiteOpenHelper.Configuration.builder(config.context).name(config.name).callback(_openCallback).build();
     final SupportSQLiteOpenHelper _helper = config.sqliteOpenHelperFactory.create(_sqliteConfig);
     return _helper;
