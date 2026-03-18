@@ -7,6 +7,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.VpnKey
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -79,66 +82,147 @@ fun LoginScreen(
 
         Spacer(modifier = Modifier.height(48.dp))
 
-        // Campo de email
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
+        // Login Switch
+        var isPhoneLogin by remember { mutableStateOf(false) }
+        var phoneNumber by remember { mutableStateOf("") }
+        var verificationCode by remember { mutableStateOf("") }
+        var showVerificationCodeField by remember { mutableStateOf(false) }
+        var currentVerificationId by remember { mutableStateOf("") }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // Campo de senha
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Senha") },
-            leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Senha") },
-            trailingIcon = {
-                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                    Icon(
-                        if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                        contentDescription = if (passwordVisible) "Esconder senha" else "Mostrar senha"
-                    )
-                }
-            },
-            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Esqueceu a senha
-        TextButton(
-            onClick = onNavigateToResetPassword,
-            modifier = Modifier.align(Alignment.End)
-        ) {
-            Text("Esqueceu a senha?")
+        LaunchedEffect(authState) {
+            if (authState is AuthState.VerificationCodeSent) {
+                currentVerificationId = (authState as AuthState.VerificationCodeSent).verificationId
+                showVerificationCodeField = true
+            }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        TabRow(selectedTabIndex = if (isPhoneLogin) 1 else 0, modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp)) {
+            Tab(selected = !isPhoneLogin, onClick = { isPhoneLogin = false; viewModel.clearError() }) {
+                paddingValues -> Text("Email", modifier = Modifier.padding(16.dp))
+            }
+            Tab(selected = isPhoneLogin, onClick = { isPhoneLogin = true; viewModel.clearError() }) {
+                paddingValues -> Text("Telefone", modifier = Modifier.padding(16.dp))
+            }
+        }
 
-        // Botão de login
-        Button(
-            onClick = { viewModel.loginWithEmail(email, password) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp),
-            enabled = email.isNotBlank() && password.isNotBlank() && authState !is AuthState.Loading
-        ) {
-            if (authState is AuthState.Loading) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary
+        if (!isPhoneLogin) {
+            // Campo de email
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
+                label = { Text("Email") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = "Email") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Campo de senha
+            OutlinedTextField(
+                value = password,
+                onValueChange = { password = it },
+                label = { Text("Senha") },
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = "Senha") },
+                trailingIcon = {
+                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                        Icon(
+                            if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = if (passwordVisible) "Esconder senha" else "Mostrar senha"
+                        )
+                    }
+                },
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Esqueceu a senha
+            TextButton(
+                onClick = onNavigateToResetPassword,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text("Esqueceu a senha?")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Botão de login Email
+            Button(
+                onClick = { viewModel.loginWithEmail(email, password) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                enabled = email.isNotBlank() && password.isNotBlank() && authState !is AuthState.Loading
+            ) {
+                if (authState is AuthState.Loading) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                } else {
+                    Text("Entrar", fontSize = 16.sp)
+                }
+            }
+        } else {
+            // Login por Telefone
+            if (!showVerificationCodeField) {
+                OutlinedTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = { Text("Telefone (com +55)") },
+                    leadingIcon = { Icon(Icons.Default.Phone, contentDescription = null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text("+55 11 99999-9999") }
                 )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = { viewModel.sendPhoneVerification(phoneNumber) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled = phoneNumber.length >= 10 && authState !is AuthState.Loading
+                ) {
+                    if (authState is AuthState.Loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text("Enviar Código SMS", fontSize = 16.sp)
+                    }
+                }
             } else {
-                Text("Entrar", fontSize = 16.sp)
+                Text("Enviamos um código para $phoneNumber", style = MaterialTheme.typography.bodySmall)
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                OutlinedTextField(
+                    value = verificationCode,
+                    onValueChange = { verificationCode = it },
+                    label = { Text("Código de 6 dígitos") },
+                    leadingIcon = { Icon(Icons.Default.VpnKey, contentDescription = null) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Button(
+                    onClick = { viewModel.verifyPhoneCode(currentVerificationId, verificationCode) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                    enabled = verificationCode.length == 6 && authState !is AuthState.Loading
+                ) {
+                    if (authState is AuthState.Loading) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    } else {
+                        Text("Verificar Código", fontSize = 16.sp)
+                    }
+                }
+
+                TextButton(onClick = { showVerificationCodeField = false }) {
+                    Text("Voltar / Tentar outro número")
+                }
             }
         }
 
@@ -190,8 +274,6 @@ fun LoginScreen(
                                 
                             val googleIdTokenCredential = com.google.android.libraries.identity.googleid.GoogleIdTokenCredential.createFrom(credential.data)
                             viewModel.loginWithGoogle(googleIdTokenCredential.idToken)
-                        } else {
-                            // Ignora ou trata erro genérico
                         }
                     } catch (e: Exception) {
                         e.printStackTrace()
@@ -202,7 +284,9 @@ fun LoginScreen(
                 .fillMaxWidth()
                 .height(50.dp)
         ) {
-            Text("🔵 Entrar com Google", fontSize = 16.sp)
+            Icon(Icons.Default.AccountCircle, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Entrar com Google", fontSize = 16.sp)
         }
 
         Spacer(modifier = Modifier.height(24.dp))

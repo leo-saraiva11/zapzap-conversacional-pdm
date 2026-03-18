@@ -81,6 +81,28 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun sendPhoneVerification(phoneNumber: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = authRepository.sendPhoneVerification(phoneNumber)
+            _authState.value = result.fold(
+                onSuccess = { AuthState.VerificationCodeSent(it) },
+                onFailure = { AuthState.Error(it.message ?: "Erro ao enviar SMS") }
+            )
+        }
+    }
+
+    fun verifyPhoneCode(verificationId: String, code: String) {
+        viewModelScope.launch {
+            _authState.value = AuthState.Loading
+            val result = authRepository.verifyPhoneCode(verificationId, code)
+            _authState.value = result.fold(
+                onSuccess = { AuthState.Success(it) },
+                onFailure = { AuthState.Error(it.message ?: "Código inválido") }
+            )
+        }
+    }
+
     fun logout() {
         viewModelScope.launch {
             authRepository.logout()
@@ -102,4 +124,5 @@ sealed class AuthState {
     data class Success(val user: User) : AuthState()
     data class Error(val message: String) : AuthState()
     object PasswordResetSent : AuthState()
+    data class VerificationCodeSent(val verificationId: String) : AuthState()
 }
