@@ -114,9 +114,10 @@ fun ChatScreen(
             properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
         ) {
             Surface(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().systemBarsPadding(),
                 color = Color.Black
             ) {
+
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (previewMediaType == MessageType.IMAGE) {
                         AsyncImage(
@@ -146,24 +147,33 @@ fun ChatScreen(
                         modifier = Modifier
                             .align(Alignment.TopStart)
                             .padding(16.dp)
+                            .statusBarsPadding()
                             .background(Color.Black.copy(0.4f), CircleShape)
                     ) {
+
                         Icon(Icons.Default.Close, null, tint = Color.White)
                     }
 
                     Surface(
                         modifier = Modifier
                             .align(Alignment.BottomCenter)
-                            .fillMaxWidth(),
+                            .fillMaxWidth()
+                            .navigationBarsPadding(),
                         color = Color.Black // Solid black bar
                     ) {
+
                         Row(
                             modifier = Modifier
                                 .padding(16.dp)
+                                .padding(bottom = 64.dp) // Margem de segurança manual para botões do sistema
                                 .fillMaxWidth(),
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+
+
+
+
                             FloatingActionButton(
                                 onClick = {
                                     viewModel.sendMediaMessage(uri, previewMediaType!!, replyingToMessage)

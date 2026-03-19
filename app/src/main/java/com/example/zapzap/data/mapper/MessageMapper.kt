@@ -5,6 +5,8 @@ import com.example.zapzap.domain.model.Message
 import com.example.zapzap.domain.model.MessageStatus
 import com.example.zapzap.domain.model.MessageType
 import com.google.firebase.Timestamp
+import com.google.firebase.firestore.FieldValue
+
 
 object MessageMapper {
     fun toDomain(entity: MessageEntity): Message = Message(
@@ -89,7 +91,7 @@ object MessageMapper {
         "mediaUrl" to message.mediaUrl,
         "latitude" to message.latitude,
         "longitude" to message.longitude,
-        "timestamp" to (if (message.timestamp <= 0) System.currentTimeMillis() else message.timestamp),
+        "timestamp" to FieldValue.serverTimestamp(),
         "status" to message.status.name,
         "isPinned" to message.isPinned,
         "isEncrypted" to message.isEncrypted,
@@ -98,4 +100,5 @@ object MessageMapper {
         "repliedMessageText" to message.repliedMessageText,
         "repliedMessageSender" to message.repliedMessageSender
     )
+
 }

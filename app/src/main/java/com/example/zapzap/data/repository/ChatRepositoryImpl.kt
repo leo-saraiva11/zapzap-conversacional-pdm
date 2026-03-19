@@ -13,7 +13,9 @@ import com.example.zapzap.domain.network.FcmService
 import com.example.zapzap.domain.repository.ChatRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
+import com.google.firebase.firestore.FieldValue
 import android.util.Log
+
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.awaitClose
@@ -232,10 +234,11 @@ class ChatRepositoryImpl @Inject constructor(
             batch.set(msgRef, MessageMapper.toFirestore(sentMsg))
             batch.update(convRef, mapOf(
                 "lastMessage" to textForConv,
-                "lastMessageTime" to ts,
+                "lastMessageTime" to FieldValue.serverTimestamp(),
                 "lastMessageSenderId" to sentMsg.senderId,
                 "lastMessageStatus" to sentMsg.status.name
             ))
+
             
             // Increment unread counts for all receivers
             val conv = getConversation(finalMsg.conversationId).getOrNull()
