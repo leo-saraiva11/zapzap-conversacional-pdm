@@ -46,7 +46,7 @@ class GroupViewModel @Inject constructor(
         }
     }
 
-    suspend fun createGroup(photoUri: Uri? = null): Pair<String, String>? {
+    suspend fun createGroup(photoUri: Uri? = null, coverUri: Uri? = null): Pair<String, String>? {
         val userId = authRepository.currentUserId ?: return null
         val memberIds = _selectedContacts.value.toList() + userId
 
@@ -58,9 +58,16 @@ class GroupViewModel @Inject constructor(
             photoUrl = uploadResult.getOrNull()?.url ?: ""
         }
 
+        var coverUrl = ""
+        if (coverUri != null) {
+            val uploadResult = mediaRepository.uploadMedia(coverUri, MessageType.IMAGE, "group_covers")
+            coverUrl = uploadResult.getOrNull()?.url ?: ""
+        }
+
         val result = groupRepository.createGroup(
             name = _groupName.value,
             photoUrl = photoUrl,
+            coverUrl = coverUrl,
             memberIds = memberIds,
             createdBy = userId
         )

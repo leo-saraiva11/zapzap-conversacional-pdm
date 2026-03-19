@@ -31,6 +31,7 @@ class GroupRepositoryImpl @Inject constructor(
     override suspend fun createGroup(
         name: String,
         photoUrl: String,
+        coverUrl: String,
         memberIds: List<String>,
         createdBy: String
     ): Result<Conversation> {
@@ -41,6 +42,7 @@ class GroupRepositoryImpl @Inject constructor(
                 name = name,
                 type = ConversationType.GROUP,
                 photoUrl = photoUrl,
+                coverUrl = coverUrl,
                 participantIds = memberIds,
                 createdAt = System.currentTimeMillis(),
                 createdBy = createdBy
@@ -56,13 +58,14 @@ class GroupRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun editGroup(groupId: String, name: String, photoUrl: String): Result<Unit> {
+    override suspend fun editGroup(groupId: String, name: String, photoUrl: String, coverUrl: String): Result<Unit> {
         return try {
             conversationsCollection.document(groupId)
                 .update(
                     mapOf(
                         "name" to name,
-                        "photoUrl" to photoUrl
+                        "photoUrl" to photoUrl,
+                        "coverUrl" to coverUrl
                     )
                 ).await()
             Result.success(Unit)

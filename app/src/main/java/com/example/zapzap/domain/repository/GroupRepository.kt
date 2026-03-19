@@ -11,12 +11,13 @@ interface GroupRepository {
     suspend fun createGroup(
         name: String,
         photoUrl: String,
+        coverUrl: String,
         memberIds: List<String>,
         createdBy: String
     ): Result<Conversation>
 
     /** Edita informações do grupo */
-    suspend fun editGroup(groupId: String, name: String, photoUrl: String): Result<Unit>
+    suspend fun editGroup(groupId: String, name: String, photoUrl: String, coverUrl: String): Result<Unit>
 
     /** Adiciona membros ao grupo */
     suspend fun addMembers(groupId: String, memberIds: List<String>): Result<Unit>

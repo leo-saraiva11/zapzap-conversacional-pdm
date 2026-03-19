@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "com.example.zapzap.app-mergeDebugResources-86:/values-v16/values-v16.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\conta\\.gradle\\caches\\8.11.1\\transforms\\2cd09efbe02243ad00de478a28fbc056\\transformed\\appcompat-1.6.1\\res\\values-v16\\values-v16.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "5",
+                        "endColumns": "12",
+                        "endOffsets": "223"
+                    }
+                }
+            ]
+        }
+    ]
+}

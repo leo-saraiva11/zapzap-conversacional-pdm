@@ -39,9 +39,12 @@ fun CreateGroupScreen(
     var photoUri by remember { mutableStateOf<Uri?>(null) }
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        photoUri = uri
-    }
+    ) { uri: Uri? -> photoUri = uri }
+
+    var coverUri by remember { mutableStateOf<Uri?>(null) }
+    val coverPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> coverUri = uri }
 
     Scaffold(
         topBar = {
@@ -57,7 +60,7 @@ fun CreateGroupScreen(
                     IconButton(
                         onClick = {
                             scope.launch {
-                                val result = viewModel.createGroup(photoUri)
+                                val result = viewModel.createGroup(photoUri, coverUri)
                                 result?.let { (id, name) -> onGroupCreated(id, name) }
                             }
                         },
@@ -83,18 +86,43 @@ fun CreateGroupScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(paddingValues)
         ) {
-            // Nome do grupo
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            // Header: Capa e Foto de Perfil
+            Box(modifier = Modifier.fillMaxWidth().height(180.dp)) {
+                // Background da Capa
                 Surface(
                     modifier = Modifier
-                        .size(56.dp)
+                        .fillMaxWidth()
+                        .height(140.dp)
+                        .clickable { coverPickerLauncher.launch("image/*") },
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    if (coverUri != null) {
+                        AsyncImage(
+                            model = coverUri,
+                            contentDescription = "Capa",
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Box(contentAlignment = Alignment.Center) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.AddPhotoAlternate, null)
+                                Text("Adicionar Capa", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                }
+
+                // Foto de Perfil sobreposta
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 16.dp, bottom = 0.dp)
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(2.dp)
                         .clip(CircleShape)
                         .clickable { photoPickerLauncher.launch("image/*") },
                     color = MaterialTheme.colorScheme.primaryContainer
@@ -103,25 +131,30 @@ fun CreateGroupScreen(
                         if (photoUri != null) {
                             AsyncImage(
                                 model = photoUri,
-                                contentDescription = null,
+                                contentDescription = "Perfil",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Icon(Icons.Default.Group, contentDescription = null,
-                                modifier = Modifier.size(28.dp))
+                            Icon(Icons.Default.CameraAlt, contentDescription = null,
+                                modifier = Modifier.size(32.dp))
                         }
                     }
                 }
-                Spacer(modifier = Modifier.width(16.dp))
-                OutlinedTextField(
-                    value = groupName,
-                    onValueChange = { viewModel.updateGroupName(it) },
-                    label = { Text("Nome do grupo") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Nome do grupo
+            OutlinedTextField(
+                value = groupName,
+                onValueChange = { viewModel.updateGroupName(it) },
+                label = { Text("Nome do grupo") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
 
             HorizontalDivider()
 

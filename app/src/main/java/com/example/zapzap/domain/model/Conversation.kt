@@ -16,7 +16,8 @@ data class Conversation(
     val unreadCount: Int = 0,
     val pinnedMessageId: String = "",
     val createdAt: Long = System.currentTimeMillis(),
-    val createdBy: String = ""
+    val createdBy: String = "",
+    val coverUrl: String = ""
 )
 
 /**

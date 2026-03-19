@@ -20,7 +20,8 @@ object ConversationMapper {
         unreadCount = entity.unreadCount,
         pinnedMessageId = entity.pinnedMessageId,
         createdAt = entity.createdAt,
-        createdBy = entity.createdBy
+        createdBy = entity.createdBy,
+        coverUrl = entity.coverUrl
     )
 
     fun toEntity(conversation: Conversation): ConversationEntity = ConversationEntity(
@@ -36,7 +37,8 @@ object ConversationMapper {
         unreadCount = conversation.unreadCount,
         pinnedMessageId = conversation.pinnedMessageId,
         createdAt = conversation.createdAt,
-        createdBy = conversation.createdBy
+        createdBy = conversation.createdBy,
+        coverUrl = conversation.coverUrl
     )
 
     fun fromFirestore(map: Map<String, Any?>, conversationId: String, currentUserId: String? = null): Conversation {
@@ -69,7 +71,8 @@ object ConversationMapper {
             unreadCount = computedUnread,
             pinnedMessageId = map["pinnedMessageId"] as? String ?: "",
             createdAt = (map["createdAt"] as? Number)?.toLong() ?: 0L,
-            createdBy = map["createdBy"] as? String ?: ""
+            createdBy = map["createdBy"] as? String ?: "",
+            coverUrl = map["coverUrl"] as? String ?: ""
         )
     }
 
@@ -85,7 +88,8 @@ object ConversationMapper {
         "unreadCount" to conversation.unreadCount,
         "pinnedMessageId" to conversation.pinnedMessageId,
         "createdAt" to conversation.createdAt,
-        "createdBy" to conversation.createdBy
+        "createdBy" to conversation.createdBy,
+        "coverUrl" to conversation.coverUrl
     )
 
     private fun serializeList(list: List<String>): String = JSONArray(list).toString()

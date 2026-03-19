@@ -111,7 +111,13 @@ class ChatViewModel @Inject constructor(
     fun renameGroup(newName: String) {
         viewModelScope.launch {
             if (newName.isNotBlank()) {
-                groupRepository.editGroup(_conversationId.value, newName, "")
+                val current = _currentConversation.value
+                groupRepository.editGroup(
+                    _conversationId.value, 
+                    newName, 
+                    current?.photoUrl ?: "", 
+                    current?.coverUrl ?: ""
+                )
                 // Refresh local info
                 val updatedConv = chatRepository.getConversation(_conversationId.value).getOrNull()
                 _currentConversation.value = updatedConv

@@ -21,5 +21,6 @@ data class ConversationEntity(
     val unreadCount: Int = 0,
     val pinnedMessageId: String = "",
     val createdAt: Long = 0L,
-    val createdBy: String = ""
+    val createdBy: String = "",
+    val coverUrl: String = ""
 )
