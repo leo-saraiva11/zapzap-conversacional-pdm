@@ -70,6 +70,11 @@ class ChatViewModel @Inject constructor(
     private val _currentConversation = MutableStateFlow<com.example.zapzap.domain.model.Conversation?>(null)
     val currentConversation: StateFlow<com.example.zapzap.domain.model.Conversation?> = _currentConversation.asStateFlow()
 
+    val allConversations: StateFlow<List<com.example.zapzap.domain.model.Conversation>> = (authRepository.currentUserId?.let { userId ->
+        chatRepository.getConversations(userId)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    } ?: MutableStateFlow(emptyList()))
+
     private val _otherUserProfile = MutableStateFlow<User?>(null)
     val otherUserProfile: StateFlow<User?> = _otherUserProfile.asStateFlow()
 
@@ -124,7 +129,7 @@ class ChatViewModel @Inject constructor(
         _messageText.value = text
     }
 
-    fun sendMessage(text: String) {
+    fun sendMessage(text: String, replyTo: Message? = null) {
         val trimmedText = text.trim()
         if (trimmedText.isBlank()) return
 
@@ -138,14 +143,37 @@ class ChatViewModel @Inject constructor(
                 senderName = user?.displayName ?: "",
                 text = trimmedText,
                 type = MessageType.TEXT,
-                status = MessageStatus.SENDING
+                status = MessageStatus.SENDING,
+                repliedMessageId = replyTo?.id ?: "",
+                repliedMessageText = replyTo?.text ?: "",
+                repliedMessageSender = replyTo?.senderName ?: ""
             )
             chatRepository.sendMessage(message)
             _messageText.value = ""
         }
     }
 
-    fun sendMediaMessage(uri: Uri, type: MessageType) {
+    fun forwardMessage(message: Message, targetConversationId: String) {
+        viewModelScope.launch {
+            val userId = authRepository.currentUserId ?: return@launch
+            val user = userRepository.getUserById(userId).getOrNull()
+
+            val fwdMsg = message.copy(
+                id = "",
+                conversationId = targetConversationId,
+                senderId = userId,
+                senderName = user?.displayName ?: "",
+                status = MessageStatus.SENDING,
+                timestamp = System.currentTimeMillis(),
+                repliedMessageId = "",
+                repliedMessageText = "",
+                repliedMessageSender = ""
+            )
+            chatRepository.sendMessage(fwdMsg)
+        }
+    }
+
+    fun sendMediaMessage(uri: Uri, type: MessageType, replyTo: Message? = null) {
         viewModelScope.launch {
             val userId = authRepository.currentUserId ?: return@launch
             val user = userRepository.getUserById(userId).getOrNull()
@@ -159,7 +187,10 @@ class ChatViewModel @Inject constructor(
                     senderName = user?.displayName ?: "",
                     type = type,
                     mediaUrl = attachment.url,
-                    status = MessageStatus.SENDING
+                    status = MessageStatus.SENDING,
+                    repliedMessageId = replyTo?.id ?: "",
+                    repliedMessageText = replyTo?.text ?: "",
+                    repliedMessageSender = replyTo?.senderName ?: ""
                 )
                 chatRepository.sendMessage(message)
             }

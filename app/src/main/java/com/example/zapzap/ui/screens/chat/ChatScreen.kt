@@ -83,6 +83,9 @@ fun ChatScreen(
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
     var previewMediaUri by remember { mutableStateOf<Uri?>(null) }
     var previewMediaType by remember { mutableStateOf<MessageType?>(null) }
+    var replyingToMessage by remember { mutableStateOf<Message?>(null) }
+    var forwardingMessage by remember { mutableStateOf<Message?>(null) }
+    val allConversations by viewModel.allConversations.collectAsState()
 
     LaunchedEffect(conversationId) {
         viewModel.setConversationId(conversationId)
@@ -139,8 +142,9 @@ fun ChatScreen(
                         }
                         FloatingActionButton(
                             onClick = {
-                                viewModel.sendMediaMessage(uri, previewMediaType!!)
+                                viewModel.sendMediaMessage(uri, previewMediaType!!, replyingToMessage)
                                 previewMediaUri = null
+                                replyingToMessage = null
                             },
                             containerColor = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(56.dp)
@@ -153,7 +157,55 @@ fun ChatScreen(
         }
     }
 
-
+    // Forward Dialog
+    if (forwardingMessage != null) {
+        Dialog(onDismissRequest = { forwardingMessage = null }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 400.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column {
+                    Text(
+                        text = "Encaminhar para...",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                    LazyColumn(modifier = Modifier.weight(1f, fill = false)) {
+                        items(allConversations, key = { it.id }) { conv ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.forwardMessage(forwardingMessage!!, conv.id)
+                                        forwardingMessage = null
+                                        android.widget.Toast.makeText(context, "Mensagem encaminhada", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Surface(
+                                    modifier = Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape),
+                                    color = MaterialTheme.colorScheme.primaryContainer
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        if (conv.photoUrl.isEmpty()) {
+                                            Text(conv.name.firstOrNull()?.uppercase() ?: "?", fontWeight = FontWeight.Bold)
+                                        } else {
+                                            AsyncImage(model = conv.photoUrl, contentDescription = null, contentScale = ContentScale.Crop)
+                                        }
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(conv.name.ifBlank { "Conversa" }, style = MaterialTheme.typography.bodyLarge)
+                            }
+                            HorizontalDivider()
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // Launchers
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -440,14 +492,8 @@ fun ChatScreen(
                                     clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(msg.text))
                                     android.widget.Toast.makeText(context, "Mensagem copiada", android.widget.Toast.LENGTH_SHORT).show()
                                 },
-                                onReplyClick = {
-                                    // Placeholder for reply
-                                    android.widget.Toast.makeText(context, "Responder em breve", android.widget.Toast.LENGTH_SHORT).show()
-                                },
-                                onForwardClick = {
-                                    // Placeholder for forward
-                                    android.widget.Toast.makeText(context, "Encaminhar em breve", android.widget.Toast.LENGTH_SHORT).show()
-                                },
+                                onReplyClick = { replyingToMessage = msg },
+                                onForwardClick = { forwardingMessage = msg },
                                 onImageClick = { fullScreenImageUrl = it }
                             )
                         }
@@ -459,6 +505,7 @@ fun ChatScreen(
                 messageText = messageText,
                 isRecording = isRecording,
                 isEditing = editingMessage != null,
+                replyingToMessage = replyingToMessage,
                 onMessageChange = { viewModel.updateMessageText(it) },
                 onSendMessage = { 
                     if (editingMessage != null) {
@@ -466,13 +513,15 @@ fun ChatScreen(
                         editingMessage = null
                         viewModel.updateMessageText("")
                     } else {
-                        viewModel.sendMessage(messageText) 
+                        viewModel.sendMessage(messageText, replyingToMessage) 
+                        replyingToMessage = null
                     }
                 },
                 onCancelEdit = {
                     editingMessage = null
                     viewModel.updateMessageText("")
                 },
+                onCancelReply = { replyingToMessage = null },
                 onAttachClick = { showAttachMenu = true },
                 onCameraClick = {
                     cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
@@ -606,6 +655,20 @@ fun MessageBubble(
                         modifier = Modifier.padding(bottom = 2.dp)
                     )
                 }
+                
+                if (message.repliedMessageId.isNotEmpty()) {
+                    Surface(
+                        color = bubbleColor.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 4.dp).background(Color.Black.copy(0.05f))
+                    ) {
+                        Column(Modifier.padding(start = 12.dp, top = 4.dp, bottom = 4.dp, end = 8.dp)) {
+                            Text(message.repliedMessageSender.ifBlank { "Você" }, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                            Text(message.repliedMessageText.ifBlank { "📷 Mídia" }, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Box(Modifier.width(4.dp).fillMaxHeight().background(MaterialTheme.colorScheme.primary))
+                    }
+                }
 
                 when (message.type) {
                     MessageType.TEXT -> {
@@ -701,7 +764,7 @@ fun MessageBubble(
                         Spacer(Modifier.width(4.dp))
                         val statusIcon = when (message.status) {
                             MessageStatus.SENDING -> Icons.Default.Schedule
-                            MessageStatus.SENT -> Icons.Default.Check
+                            MessageStatus.SENT -> Icons.Default.DoneAll // 2 checks cinzas
                             MessageStatus.DELIVERED -> Icons.Default.DoneAll
                             MessageStatus.READ -> Icons.Default.DoneAll
                         }
@@ -758,9 +821,11 @@ fun ChatInputBar(
     messageText: String,
     isRecording: Boolean,
     isEditing: Boolean = false,
+    replyingToMessage: Message? = null,
     onMessageChange: (String) -> Unit,
     onSendMessage: () -> Unit,
     onCancelEdit: () -> Unit = {},
+    onCancelReply: () -> Unit = {},
     onAttachClick: () -> Unit,
     onCameraClick: () -> Unit,
     onLocationClick: () -> Unit,
@@ -779,6 +844,21 @@ fun ChatInputBar(
                     Icon(Icons.Default.Edit, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                     Text("Editando mensagem", style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f).padding(start = 8.dp))
                     IconButton(onClick = onCancelEdit, modifier = Modifier.size(24.dp)) {
+                        Icon(Icons.Default.Close, null, Modifier.size(16.dp))
+                    }
+                }
+            }
+            if (replyingToMessage != null) {
+                Row(
+                    Modifier.fillMaxWidth().background(Color.LightGray.copy(0.3f)).padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                        Text(replyingToMessage.senderName.ifBlank { "Você" }, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
+                        Text(replyingToMessage.text.ifBlank { "📷 Mídia" }, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                    }
+                    IconButton(onClick = onCancelReply, modifier = Modifier.size(24.dp)) {
                         Icon(Icons.Default.Close, null, Modifier.size(16.dp))
                     }
                 }

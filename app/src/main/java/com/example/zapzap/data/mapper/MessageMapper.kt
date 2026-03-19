@@ -22,7 +22,10 @@ object MessageMapper {
         status = MessageStatus.fromString(entity.status),
         isPinned = entity.isPinned,
         isEncrypted = entity.isEncrypted,
-        isEdited = entity.isEdited
+        isEdited = entity.isEdited,
+        repliedMessageId = entity.repliedMessageId,
+        repliedMessageText = entity.repliedMessageText,
+        repliedMessageSender = entity.repliedMessageSender
     )
 
     fun toEntity(message: Message, isSynced: Boolean = true): MessageEntity = MessageEntity(
@@ -41,7 +44,10 @@ object MessageMapper {
         isPinned = message.isPinned,
         isEncrypted = message.isEncrypted,
         isEdited = message.isEdited,
-        isSynced = isSynced
+        isSynced = isSynced,
+        repliedMessageId = message.repliedMessageId,
+        repliedMessageText = message.repliedMessageText,
+        repliedMessageSender = message.repliedMessageSender
     )
 
     fun fromFirestore(map: Map<String, Any?>, messageId: String): Message {
@@ -67,7 +73,10 @@ object MessageMapper {
             status = MessageStatus.fromString(map["status"] as? String ?: "SENT"),
             isPinned = map["isPinned"] as? Boolean ?: false,
             isEncrypted = map["isEncrypted"] as? Boolean ?: false,
-            isEdited = map["isEdited"] as? Boolean ?: false
+            isEdited = map["isEdited"] as? Boolean ?: false,
+            repliedMessageId = map["repliedMessageId"] as? String ?: "",
+            repliedMessageText = map["repliedMessageText"] as? String ?: "",
+            repliedMessageSender = map["repliedMessageSender"] as? String ?: ""
         )
     }
 
@@ -84,6 +93,9 @@ object MessageMapper {
         "status" to message.status.name,
         "isPinned" to message.isPinned,
         "isEncrypted" to message.isEncrypted,
-        "isEdited" to message.isEdited
+        "isEdited" to message.isEdited,
+        "repliedMessageId" to message.repliedMessageId,
+        "repliedMessageText" to message.repliedMessageText,
+        "repliedMessageSender" to message.repliedMessageSender
     )
 }
