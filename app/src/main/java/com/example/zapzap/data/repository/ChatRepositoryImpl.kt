@@ -58,8 +58,15 @@ class ChatRepositoryImpl @Inject constructor(
                             val text = if (msg.isNotEmpty() && msg != "📷 Mídia" && !msg.startsWith("📍") && !msg.contains("http")) {
                                 try { com.example.zapzap.util.EncryptionHelper.decrypt(msg) } catch(e:Exception) { msg }
                             } else msg
-                                                        
-                            showLocalNotification("Nova mensagem recebida!", text, change.document.id)
+                            
+                            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                                var sName = "Nova Mensagem"
+                                try {
+                                    val uDoc = firestore.collection("users").document(senderId).get().await()
+                                    sName = uDoc.getString("displayName") ?: uDoc.getString("email") ?: sName
+                                } catch(e: Exception) {}
+                                showLocalNotification(sName, text, change.document.id)
+                            }
                         }
                     }
                 }

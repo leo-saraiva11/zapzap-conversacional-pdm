@@ -123,13 +123,18 @@ fun ChatScreen(
                             modifier = Modifier.weight(1f).fillMaxWidth()
                         )
                     } else if (previewMediaType == MessageType.VIDEO) {
-                        Box(
+                        androidx.compose.ui.viewinterop.AndroidView(
                             modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Default.PlayCircle, null, tint = Color.White, modifier = Modifier.size(64.dp))
-                            Text("Vídeo selecionado", color = Color.White, modifier = Modifier.padding(top = 80.dp))
-                        }
+                            factory = { ctx ->
+                                android.widget.VideoView(ctx).apply {
+                                    setVideoURI(uri)
+                                    setOnPreparedListener { mp ->
+                                        mp.isLooping = true
+                                        start()
+                                    }
+                                }
+                            }
+                        )
                     }
                     
                     Row(
@@ -479,12 +484,12 @@ fun ChatScreen(
         Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
             pinnedMessage?.let { PinnedMessageBar(it, onUnpin = { viewModel.togglePinMessage(it.id, true) }) }
             Box(modifier = Modifier.weight(1f)) {
-                // Background image like WhatsApp (Subtle texture or icon)
+                val isDark = androidx.compose.foundation.isSystemInDarkTheme()
+                val bgPatternColor = if (isDark) Color(0xFF0b141a) else Color(0xFFefeae2)
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .alpha(0.05f)
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(bgPatternColor)
                 )
 
                 LazyColumn(
@@ -741,6 +746,25 @@ fun MessageBubble(
                                 .clickable { onImageClick(message.mediaUrl) },
                             contentScale = ContentScale.Crop
                         )
+                    }
+                    MessageType.VIDEO -> {
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 250.dp, min = 150.dp)
+                                .heightIn(max = 250.dp, min = 150.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.Black)
+                                .clickable {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        setDataAndType(Uri.parse(message.mediaUrl), "video/*")
+                                        flags = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                                    }
+                                    try { context.startActivity(intent) } catch (e: Exception) { }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.PlayCircle, contentDescription = "Play Video", modifier = Modifier.size(64.dp), tint = Color.LightGray)
+                        }
                     }
                     MessageType.AUDIO -> AudioPlayerMessage(url = message.mediaUrl)
                     MessageType.LOCATION -> {
