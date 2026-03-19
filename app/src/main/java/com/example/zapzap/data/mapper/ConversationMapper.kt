@@ -39,7 +39,7 @@ object ConversationMapper {
         createdBy = conversation.createdBy
     )
 
-    fun fromFirestore(map: Map<String, Any?>, conversationId: String): Conversation {
+    fun fromFirestore(map: Map<String, Any?>, conversationId: String, currentUserId: String? = null): Conversation {
         val rawParticipants = map["participantIds"] as? List<*>
         val participants = rawParticipants?.mapNotNull { it?.toString() } ?: emptyList()
 
@@ -48,6 +48,12 @@ object ConversationMapper {
             com.example.zapzap.util.EncryptionHelper.decrypt(lastMsg)
         } else {
             lastMsg
+        }
+
+        val unreadCountsMap = map["unreadCounts"] as? Map<String, Number>
+        var computedUnread = (map["unreadCount"] as? Number)?.toInt() ?: 0
+        if (currentUserId != null && unreadCountsMap != null) {
+            computedUnread = unreadCountsMap[currentUserId]?.toInt() ?: 0
         }
 
         return Conversation(
@@ -60,7 +66,7 @@ object ConversationMapper {
             lastMessageTime = (map["lastMessageTime"] as? Number)?.toLong() ?: 0L,
             lastMessageSenderId = map["lastMessageSenderId"] as? String ?: "",
             lastMessageStatus = MessageStatus.fromString(map["lastMessageStatus"] as? String ?: "SENT"),
-            unreadCount = (map["unreadCount"] as? Number)?.toInt() ?: 0,
+            unreadCount = computedUnread,
             pinnedMessageId = map["pinnedMessageId"] as? String ?: "",
             createdAt = (map["createdAt"] as? Number)?.toLong() ?: 0L,
             createdBy = map["createdBy"] as? String ?: ""

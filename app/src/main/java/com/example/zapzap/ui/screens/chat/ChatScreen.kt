@@ -81,6 +81,8 @@ fun ChatScreen(
     var fullScreenImageUrl by remember { mutableStateOf<String?>(null) }
     var editingMessage by remember { mutableStateOf<Message?>(null) }
     val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+    var previewMediaUri by remember { mutableStateOf<Uri?>(null) }
+    var previewMediaType by remember { mutableStateOf<MessageType?>(null) }
 
     LaunchedEffect(conversationId) {
         viewModel.setConversationId(conversationId)
@@ -102,15 +104,72 @@ fun ChatScreen(
         }
     }
 
+    // Media Preview Dialog (Item 7 Requirement)
+    previewMediaUri?.let { uri ->
+        Dialog(onDismissRequest = { previewMediaUri = null }) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    if (previewMediaType == MessageType.IMAGE) {
+                        AsyncImage(
+                            model = uri,
+                            contentDescription = "Pré-visualização",
+                            contentScale = ContentScale.Fit,
+                            modifier = Modifier.weight(1f).fillMaxWidth()
+                        )
+                    } else if (previewMediaType == MessageType.VIDEO) {
+                        Box(
+                            modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Default.PlayCircle, null, tint = Color.White, modifier = Modifier.size(64.dp))
+                            Text("Vídeo selecionado", color = Color.White, modifier = Modifier.padding(top = 80.dp))
+                        }
+                    }
+                    
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(onClick = { previewMediaUri = null }) {
+                            Text("Cancelar", color = Color.Gray)
+                        }
+                        FloatingActionButton(
+                            onClick = {
+                                viewModel.sendMediaMessage(uri, previewMediaType!!)
+                                previewMediaUri = null
+                            },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+
     // Launchers
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
         if (success && photoUri != null) {
-            viewModel.sendMediaMessage(photoUri!!, MessageType.IMAGE)
+            previewMediaUri = photoUri
+            previewMediaType = MessageType.IMAGE
         }
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { viewModel.sendMediaMessage(it, MessageType.IMAGE) }
+        if (uri != null) {
+            val mimeType = context.contentResolver.getType(uri)
+            val type = if (mimeType?.startsWith("video") == true) MessageType.VIDEO else MessageType.IMAGE
+            previewMediaUri = uri
+            previewMediaType = type
+        }
     }
 
     val fileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -327,7 +386,7 @@ fun ChatScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+        Column(modifier = Modifier.fillMaxSize().padding(padding).imePadding()) {
             pinnedMessage?.let { PinnedMessageBar(it, onUnpin = { viewModel.togglePinMessage(it.id, true) }) }
             Box(modifier = Modifier.weight(1f)) {
                 // Background image like WhatsApp (Subtle texture or icon)
@@ -379,6 +438,15 @@ fun ChatScreen(
                                 },
                                 onCopyClick = {
                                     clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(msg.text))
+                                    android.widget.Toast.makeText(context, "Mensagem copiada", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                onReplyClick = {
+                                    // Placeholder for reply
+                                    android.widget.Toast.makeText(context, "Responder em breve", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                onForwardClick = {
+                                    // Placeholder for forward
+                                    android.widget.Toast.makeText(context, "Encaminhar em breve", android.widget.Toast.LENGTH_SHORT).show()
                                 },
                                 onImageClick = { fullScreenImageUrl = it }
                             )
@@ -451,6 +519,8 @@ fun MessageBubble(
     onDeleteClick: () -> Unit = {},
     onEditClick: () -> Unit = {},
     onCopyClick: () -> Unit = {},
+    onReplyClick: () -> Unit = {},
+    onForwardClick: () -> Unit = {},
     onImageClick: (String) -> Unit
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -499,9 +569,19 @@ fun MessageBubble(
                         leadingIcon = { Icon(Icons.Default.PushPin, null, modifier = Modifier.size(18.dp)) }
                     )
                     DropdownMenuItem(
-                        text = { Text("Copiar texto") },
+                        text = { Text("Responder") },
+                        onClick = { onReplyClick(); showMenu = false },
+                        leadingIcon = { Icon(Icons.Default.Reply, null, modifier = Modifier.size(18.dp)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Copiar") },
                         onClick = { onCopyClick(); showMenu = false },
                         leadingIcon = { Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(18.dp)) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Encaminhar") },
+                        onClick = { onForwardClick(); showMenu = false },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Filled.Send, null, modifier = Modifier.size(18.dp)) } // Forward alternative since Material icons might not have it easily available without automirrored
                     )
                     if (isOwnMessage) {
                         DropdownMenuItem(
@@ -725,6 +805,16 @@ fun ChatInputBar(
                         onValueChange = onMessageChange,
                         placeholder = { Text("Mensagem") },
                         modifier = Modifier.weight(1f),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            imeAction = androidx.compose.ui.text.input.ImeAction.Send
+                        ),
+                        keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                            onSend = {
+                                if (messageText.isNotBlank()) {
+                                    onSendMessage()
+                                }
+                            }
+                        ),
                         shape = RoundedCornerShape(24.dp),
                         colors = TextFieldDefaults.colors(
                             focusedIndicatorColor = Color.Transparent,

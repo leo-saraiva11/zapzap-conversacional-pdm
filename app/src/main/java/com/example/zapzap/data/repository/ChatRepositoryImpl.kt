@@ -42,7 +42,7 @@ class ChatRepositoryImpl @Inject constructor(
 
                 launch {
                     val deferredConversations = snapshot?.documents?.mapNotNull { doc ->
-                        val base = ConversationMapper.fromFirestore(doc.data ?: emptyMap(), doc.id)
+                        val base = ConversationMapper.fromFirestore(doc.data ?: emptyMap(), doc.id, userId)
                         
                         if (base.type == ConversationType.GROUP) {
                             // Grupos usam o nome e foto do próprio documento
@@ -152,7 +152,7 @@ class ChatRepositoryImpl @Inject constructor(
             }
 
             if (existing != null) {
-                return Result.success(ConversationMapper.fromFirestore(existing.data!!, existing.id))
+                return Result.success(ConversationMapper.fromFirestore(existing.data!!, existing.id, currentUserId))
             }
 
             val id = UUID.randomUUID().toString()
@@ -204,6 +204,12 @@ class ChatRepositoryImpl @Inject constructor(
                 "lastMessageSenderId" to sentMsg.senderId,
                 "lastMessageStatus" to sentMsg.status.name
             ))
+            
+            // Increment unread counts for all receivers
+            val conv = getConversation(finalMsg.conversationId).getOrNull()
+            conv?.participantIds?.filter { it != sentMsg.senderId }?.forEach { receiverId ->
+                batch.update(convRef, "unreadCounts.$receiverId", com.google.firebase.firestore.FieldValue.increment(1))
+            }
             
             batch.commit().await()
             messageDao.updateMessageStatus(id, MessageStatus.SENT.name)
@@ -280,9 +286,19 @@ class ChatRepositoryImpl @Inject constructor(
                         hasUpdates = true
                     }
                 }
+                
+                // Reset unread count for current user
+                val convRef = firestore.collection("conversations").document(conversationId)
+                batch.update(convRef, "unreadCounts.$userId", 0)
+                hasUpdates = true
+
                 if (hasUpdates) {
                     batch.commit().await()
                 }
+            } else {
+                // Mesmo sem novas mensagens, garante que zera no server (ex: abriu o chat)
+                firestore.collection("conversations").document(conversationId)
+                    .update("unreadCounts.$userId", 0).await()
             }
             
             Result.success(Unit)
