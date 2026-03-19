@@ -9,6 +9,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Group
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -107,7 +109,7 @@ fun CreateGroupScreen(
                     } else {
                         Box(contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.AddPhotoAlternate, null)
+                                Icon(Icons.Default.Add, null)
                                 Text("Adicionar Capa", style = MaterialTheme.typography.labelSmall)
                             }
                         }
@@ -136,7 +138,7 @@ fun CreateGroupScreen(
                                 modifier = Modifier.fillMaxSize()
                             )
                         } else {
-                            Icon(Icons.Default.CameraAlt, contentDescription = null,
+                            Icon(Icons.Default.Add, contentDescription = null,
                                 modifier = Modifier.size(32.dp))
                         }
                     }
