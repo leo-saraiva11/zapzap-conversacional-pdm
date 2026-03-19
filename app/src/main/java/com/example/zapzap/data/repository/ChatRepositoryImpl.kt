@@ -23,11 +23,14 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.UUID
+import dagger.hilt.android.qualifiers.ApplicationContext
+import android.content.Context
 import javax.inject.Inject
 import javax.inject.Singleton
 
 @Singleton
 class ChatRepositoryImpl @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val firestore: FirebaseFirestore,
     private val messageDao: MessageDao,
     private val conversationDao: ConversationDao,
@@ -35,10 +38,32 @@ class ChatRepositoryImpl @Inject constructor(
 ) : ChatRepository {
 
     override fun getConversations(userId: String): Flow<List<Conversation>> = callbackFlow {
+        var isInitialLoad = true
         val listener = firestore.collection("conversations")
             .whereArrayContains("participantIds", userId)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) return@addSnapshotListener
+
+                if (!isInitialLoad && snapshot != null) {
+                    val changedDocs = snapshot.documentChanges.filter { 
+                        it.type == com.google.firebase.firestore.DocumentChange.Type.MODIFIED || it.type == com.google.firebase.firestore.DocumentChange.Type.ADDED
+                    }
+                    
+                    changedDocs.forEach { change ->
+                        val map = change.document.data
+                        val senderId = map["lastMessageSenderId"] as? String ?: ""
+                        val msg = map["lastMessage"] as? String ?: "Nova mensagem"
+                        
+                        if (senderId.isNotEmpty() && senderId != userId) {
+                            val text = if (msg.isNotEmpty() && msg != "📷 Mídia" && !msg.startsWith("📍") && !msg.contains("http")) {
+                                try { com.example.zapzap.util.EncryptionHelper.decrypt(msg) } catch(e:Exception) { msg }
+                            } else msg
+                                                        
+                            showLocalNotification("Nova mensagem recebida!", text, change.document.id)
+                        }
+                    }
+                }
+                isInitialLoad = false
 
                 launch {
                     val deferredConversations = snapshot?.documents?.mapNotNull { doc ->
@@ -421,4 +446,29 @@ class ChatRepositoryImpl @Inject constructor(
         conversationDao.searchConversations(query).map { entities -> 
             entities.map { ConversationMapper.toDomain(it) } 
         }
+
+    private fun showLocalNotification(title: String, body: String, conversationId: String) {
+        try {
+            val intent = android.content.Intent(context, Class.forName("com.example.zapzap.MainActivity")).apply {
+                flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                putExtra("conversationId", conversationId)
+            }
+            val pendingIntent = android.app.PendingIntent.getActivity(
+                context, System.currentTimeMillis().toInt(), intent,
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val notification = androidx.core.app.NotificationCompat.Builder(context, "zapzap_channel")
+                .setSmallIcon(android.R.drawable.ic_dialog_email)
+                .setContentTitle(title)
+                .setContentText(body)
+                .setPriority(androidx.core.app.NotificationCompat.PRIORITY_HIGH)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .build()
+            val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            notificationManager.notify(conversationId.hashCode(), notification)
+        } catch (e: Exception) {
+            android.util.Log.e("ChatRepository", "Falha ao mostrar notificação local", e)
+        }
+    }
 }
