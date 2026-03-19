@@ -457,7 +457,7 @@ class ChatRepositoryImpl @Inject constructor(
                 context, System.currentTimeMillis().toInt(), intent,
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
-            val notification = androidx.core.app.NotificationCompat.Builder(context, "zapzap_channel")
+            val notification = androidx.core.app.NotificationCompat.Builder(context, com.example.zapzap.ZapZapApplication.CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_email)
                 .setContentTitle(title)
                 .setContentText(body)
