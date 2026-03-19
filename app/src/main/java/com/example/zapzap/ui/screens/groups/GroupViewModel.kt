@@ -8,6 +8,8 @@ import com.example.zapzap.domain.repository.AuthRepository
 import com.example.zapzap.domain.repository.ContactRepository
 import com.example.zapzap.domain.repository.GroupRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import android.net.Uri
+import com.example.zapzap.domain.model.MessageType
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -16,7 +18,8 @@ import javax.inject.Inject
 class GroupViewModel @Inject constructor(
     private val groupRepository: GroupRepository,
     private val contactRepository: ContactRepository,
-    private val authRepository: AuthRepository
+    private val authRepository: AuthRepository,
+    private val mediaRepository: com.example.zapzap.domain.repository.MediaRepository
 ) : ViewModel() {
 
     private val _groupName = MutableStateFlow("")
@@ -43,14 +46,21 @@ class GroupViewModel @Inject constructor(
         }
     }
 
-    suspend fun createGroup(): Pair<String, String>? {
+    suspend fun createGroup(photoUri: Uri? = null): Pair<String, String>? {
         val userId = authRepository.currentUserId ?: return null
         val memberIds = _selectedContacts.value.toList() + userId
 
         _isLoading.value = true
+        
+        var photoUrl = ""
+        if (photoUri != null) {
+            val uploadResult = mediaRepository.uploadMedia(photoUri, MessageType.IMAGE, "group_profiles")
+            photoUrl = uploadResult.getOrNull()?.url ?: ""
+        }
+
         val result = groupRepository.createGroup(
             name = _groupName.value,
-            photoUrl = "",
+            photoUrl = photoUrl,
             memberIds = memberIds,
             createdBy = userId
         )

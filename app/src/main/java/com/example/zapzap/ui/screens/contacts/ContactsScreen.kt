@@ -17,6 +17,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.example.zapzap.domain.model.Contact
 import kotlinx.coroutines.launch
 
@@ -31,6 +33,7 @@ fun ContactsScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
 
     val contactPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -114,10 +117,14 @@ fun ContactsScreen(
                         ContactItem(
                             contact = contact,
                             onClick = {
-                                scope.launch {
-                                    val result = viewModel.startConversation(contact.id)
-                                    result?.let { (convId, name) ->
-                                        onNavigateToChat(convId, name.ifBlank { contact.displayName })
+                                if (contact.userId.startsWith("unregistered_")) {
+                                    Toast.makeText(context, "Este contato não possui conta no ZapZap", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    scope.launch {
+                                        val result = viewModel.startConversation(contact.id)
+                                        result?.let { (convId, name) ->
+                                            onNavigateToChat(convId, name.ifBlank { contact.displayName })
+                                        }
                                     }
                                 }
                             },
@@ -151,12 +158,20 @@ private fun ContactItem(
             Text(contact.displayName, fontWeight = FontWeight.Medium)
         },
         supportingContent = {
-            Text(
-                contact.phone.ifBlank { contact.email },
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            if (contact.userId.startsWith("unregistered_")) {
+                Text(
+                    "Não utiliza o ZapZap",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            } else {
+                Text(
+                    contact.phone.ifBlank { contact.email },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         },
         leadingContent = {
             Surface(

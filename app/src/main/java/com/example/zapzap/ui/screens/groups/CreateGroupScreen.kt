@@ -1,5 +1,6 @@
 package com.example.zapzap.ui.screens.groups
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -13,9 +14,14 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,6 +36,12 @@ fun CreateGroupScreen(
     val contacts by viewModel.contacts.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val scope = rememberCoroutineScope()
+    var photoUri by remember { mutableStateOf<Uri?>(null) }
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        photoUri = uri
+    }
 
     Scaffold(
         topBar = {
@@ -45,7 +57,7 @@ fun CreateGroupScreen(
                     IconButton(
                         onClick = {
                             scope.launch {
-                                val result = viewModel.createGroup()
+                                val result = viewModel.createGroup(photoUri)
                                 result?.let { (id, name) -> onGroupCreated(id, name) }
                             }
                         },
@@ -83,12 +95,22 @@ fun CreateGroupScreen(
                 Surface(
                     modifier = Modifier
                         .size(56.dp)
-                        .clip(CircleShape),
+                        .clip(CircleShape)
+                        .clickable { photoPickerLauncher.launch("image/*") },
                     color = MaterialTheme.colorScheme.primaryContainer
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Icon(Icons.Default.Group, contentDescription = null,
-                            modifier = Modifier.size(28.dp))
+                        if (photoUri != null) {
+                            AsyncImage(
+                                model = photoUri,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(Icons.Default.Group, contentDescription = null,
+                                modifier = Modifier.size(28.dp))
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.width(16.dp))

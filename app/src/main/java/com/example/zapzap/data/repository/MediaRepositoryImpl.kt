@@ -94,9 +94,18 @@ class MediaRepositoryImpl @Inject constructor(
         return when {
             mimeType.contains("jpeg") || mimeType.contains("jpg") -> ".jpg"
             mimeType.contains("png") -> ".png"
+            mimeType.contains("mp4") || mimeType.contains("video") -> ".mp4"
             mimeType.contains("mp3") || mimeType.contains("mpeg") -> ".mp3"
             mimeType.contains("aac") || mimeType.contains("m4a") -> ".m4a"
-            else -> if (uri.toString().endsWith(".jpg")) ".jpg" else ".mp3"
+            else -> {
+                val path = uri.path ?: ""
+                when {
+                    path.endsWith(".jpg", true) -> ".jpg"
+                    path.endsWith(".png", true) -> ".png"
+                    path.endsWith(".mp4", true) -> ".mp4"
+                    else -> ".bin"
+                }
+            }
         }
     }
 }

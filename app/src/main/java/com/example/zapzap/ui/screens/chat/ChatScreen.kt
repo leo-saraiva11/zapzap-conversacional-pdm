@@ -109,22 +109,25 @@ fun ChatScreen(
 
     // Media Preview Dialog (Item 7 Requirement)
     previewMediaUri?.let { uri ->
-        Dialog(onDismissRequest = { previewMediaUri = null }) {
+        androidx.compose.ui.window.Dialog(
+            onDismissRequest = { previewMediaUri = null },
+            properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Surface(
-                modifier = Modifier.fillMaxWidth().heightIn(max = 500.dp),
-                shape = RoundedCornerShape(12.dp)
+                modifier = Modifier.fillMaxSize(),
+                color = Color.Black
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(modifier = Modifier.fillMaxSize()) {
                     if (previewMediaType == MessageType.IMAGE) {
                         AsyncImage(
                             model = uri,
                             contentDescription = "Pré-visualização",
                             contentScale = ContentScale.Fit,
-                            modifier = Modifier.weight(1f).fillMaxWidth()
+                            modifier = Modifier.fillMaxSize()
                         )
                     } else if (previewMediaType == MessageType.VIDEO) {
                         androidx.compose.ui.viewinterop.AndroidView(
-                            modifier = Modifier.weight(1f).fillMaxWidth().background(Color.Black),
+                            modifier = Modifier.fillMaxSize(),
                             factory = { ctx ->
                                 android.widget.VideoView(ctx).apply {
                                     setVideoURI(uri)
@@ -136,25 +139,42 @@ fun ChatScreen(
                             }
                         )
                     }
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+
+                    // Botões de overlay
+                    IconButton(
+                        onClick = { previewMediaUri = null },
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(16.dp)
+                            .background(Color.Black.copy(0.4f), CircleShape)
                     ) {
-                        TextButton(onClick = { previewMediaUri = null }) {
-                            Text("Cancelar", color = Color.Gray)
-                        }
-                        FloatingActionButton(
-                            onClick = {
-                                viewModel.sendMediaMessage(uri, previewMediaType!!, replyingToMessage)
-                                previewMediaUri = null
-                                replyingToMessage = null
-                            },
-                            containerColor = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(56.dp)
+                        Icon(Icons.Default.Close, null, tint = Color.White)
+                    }
+
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth(),
+                        color = Color.Black // Solid black bar
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .padding(16.dp)
+                                .fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = Color.White)
+                            FloatingActionButton(
+                                onClick = {
+                                    viewModel.sendMediaMessage(uri, previewMediaType!!, replyingToMessage)
+                                    previewMediaUri = null
+                                    replyingToMessage = null
+                                },
+                                containerColor = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(56.dp)
+                            ) {
+                                Icon(Icons.AutoMirrored.Filled.Send, "Enviar", tint = Color.White)
+                            }
                         }
                     }
                 }

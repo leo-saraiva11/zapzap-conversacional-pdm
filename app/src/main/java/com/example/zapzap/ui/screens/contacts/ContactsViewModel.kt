@@ -95,12 +95,23 @@ class ContactsViewModel @Inject constructor(
             val currentUserId = authRepository.currentUserId ?: return@launch
             
             deviceContacts.forEach { deviceContact ->
+                // Tenta achar no Firebase para ter o userId real
                 val searchResult = contactRepository.findUserByEmailOrPhone(deviceContact.phone)
                 val registeredUser = searchResult.getOrNull()
                 
                 if (registeredUser != null) {
-                    // Update display name map to use the device's saved name
-                    contactRepository.addContact(currentUserId, registeredUser.copy(displayName = deviceContact.displayName))
+                    // Contato oficial: usa o ID do Firebase e o nome da agenda
+                    contactRepository.addContact(
+                        currentUserId, 
+                        registeredUser.copy(displayName = deviceContact.displayName)
+                    )
+                } else {
+                    // Contato não registrado: adiciona com um ID temporário apenas para exibição
+                    // (Opcional: o professor pode querer ver todos os contatos da agenda aparecendo)
+                    contactRepository.addContact(
+                        currentUserId, 
+                        deviceContact.copy(userId = "unregistered_${deviceContact.id}")
+                    )
                 }
             }
         }
