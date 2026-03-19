@@ -215,6 +215,13 @@ fun ChatScreen(
         }
     }
 
+    val videoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CaptureVideo()) { success ->
+        if (success && photoUri != null) {
+            previewMediaUri = photoUri
+            previewMediaType = MessageType.VIDEO
+        }
+    }
+
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         if (uri != null) {
             val mimeType = context.contentResolver.getType(uri)
@@ -233,12 +240,43 @@ fun ChatScreen(
         if (granted) viewModel.startRecording(context)
     }
 
+    var showCameraOptions by remember { mutableStateOf(false) }
+    var isCapturingVideo by remember { mutableStateOf(false) }
+
     val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            val uri = ImageUtils.createTempImageUri(context)
-            photoUri = uri
-            cameraLauncher.launch(uri)
+            if (isCapturingVideo) {
+                val uri = ImageUtils.createTempVideoUri(context)
+                photoUri = uri
+                videoLauncher.launch(uri)
+            } else {
+                val uri = ImageUtils.createTempImageUri(context)
+                photoUri = uri
+                cameraLauncher.launch(uri)
+            }
         }
+    }
+
+    if (showCameraOptions) {
+        AlertDialog(
+            onDismissRequest = { showCameraOptions = false },
+            title = { Text("Câmera") },
+            text = { Text("O que você deseja capturar?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCameraOptions = false
+                    isCapturingVideo = false
+                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                }) { Text("Foto") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showCameraOptions = false
+                    isCapturingVideo = true
+                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                }) { Text("Vídeo") }
+            }
+        )
     }
 
     val locationPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
@@ -524,7 +562,7 @@ fun ChatScreen(
                 onCancelReply = { replyingToMessage = null },
                 onAttachClick = { showAttachMenu = true },
                 onCameraClick = {
-                    cameraPermissionLauncher.launch(android.Manifest.permission.CAMERA)
+                    showCameraOptions = true
                 },
                 onLocationClick = {
                     locationPermissionLauncher.launch(arrayOf(

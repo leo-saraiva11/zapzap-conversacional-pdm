@@ -10,4 +10,9 @@ object ImageUtils {
         val file = File.createTempFile("IMG_", ".jpg", context.cacheDir)
         return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
     }
+
+    fun createTempVideoUri(context: Context): Uri {
+        val file = File.createTempFile("VID_", ".mp4", context.cacheDir)
+        return FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
+    }
 }
